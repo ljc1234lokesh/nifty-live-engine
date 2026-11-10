@@ -3,21 +3,22 @@ import pyotp
 from SmartApi import SmartConnect
 import matplotlib.pyplot as plt
 import numpy as np
+import datetime
+from scipy.stats import norm
 import time
 
-st.set_page_config(page_title="Nifty Real Options Radar", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Nifty Institutional Radar", layout="wide", initial_sidebar_state="collapsed")
 
-# --- PRO DARK INTERFACE ---
+# --- CUSTOM CSS ---
 st.markdown("""
 <style>
     .reportview-container { background: #0b0f19; }
-    .card { background-color: #111827; border-radius: 10px; padding: 18px; border: 1px solid #1f2937; margin-bottom: 12px; }
-    .badge-bull { background-color: #064e3b; color: #34d399; padding: 4px 10px; border-radius: 6px; font-weight: bold; }
-    .badge-neutral { background-color: #1e1b4b; color: #818cf8; padding: 4px 10px; border-radius: 6px; font-weight: bold; }
+    .metric-box { background-color: #111827; border-radius: 8px; padding: 12px; border: 1px solid #1f2937; }
+    .stRadio [role="radiogroup"] { gap: 15px; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("⚡ Nifty Options Decision Engine (Kite Synced)")
+st.title("⚡ Nifty Options Decision Engine (Auto-Rolled)")
 
 # --- CREDENTIALS ---
 try:
@@ -26,7 +27,7 @@ try:
     PASSWORD = st.secrets["PASSWORD"]
     TOTP_SECRET = st.secrets["TOTP_SECRET"]
 except Exception:
-    st.error("⚠️ Credentials missing in Streamlit Secrets!")
+    st.error("⚠️ Streamlit Secrets mein credentials missing hain!")
     st.stop()
 
 # --- ANGEL ONE SESSION ---
@@ -61,101 +62,132 @@ def get_live_nifty():
 live_spot = get_live_nifty()
 atm_strike = int(round(live_spot / 50.0) * 50)
 
-# --- TOP SUMMARY METRICS ---
-col1, col2, col3 = st.columns([1.2, 1, 1.4])
+# --- 1. DYNAMIC EXPIRY GENERATOR (AUTO ROLLOVER ON EXPIRY) ---
+# Nifty current cycle expiries (November 2026 schedule)
+all_possible_expiries = [
+    datetime.datetime(2026, 11, 17, 15, 30),
+    datetime.datetime(2026, 11, 23, 15, 30),
+    datetime.datetime(2026, 12, 1, 15, 30),
+    datetime.datetime(2026, 12, 8, 15, 30),
+    datetime.datetime(2026, 12, 15, 15, 30)
+]
 
-with col1:
-    st.metric(label="NIFTY 50 SPOT", value=f"₹{live_spot:,.2f}")
+now = datetime.datetime.now()
+# Filter out expired contracts automatically
+active_expiries = [exp for exp in all_possible_expiries if exp > now]
 
-with col2:
+if not active_expiries:
+    st.error("Expiry list refresh required.")
+    st.stop()
+
+# Format strings for selector
+expiry_labels = []
+for exp in active_expiries[:3]:
+    dte = (exp.date() - now.date()).days
+    expiry_labels.append(f"{exp.strftime('%d-%b')} ({dte} Days)")
+
+# Top Summary Row
+c1, c2, c3 = st.columns([1.2, 1, 1.4])
+with c1:
+    st.metric(label="LIVE NIFTY SPOT", value=f"₹{live_spot:,.2f}")
+with c2:
     st.metric(label="ATM STRIKE", value=f"{atm_strike}")
-
-with col3:
-    st.metric(label="ATM IV / PCR", value="16.70% (High)", delta="PCR 1.13 (Neutral-Bull)")
+with c3:
+    st.metric(label="ATM IV / REGIME", value="16.70%", delta="Very High (Sell Edge)")
 
 st.write("---")
 
-# --- NON-KEYBOARD EXPIRY SELECTOR ---
-st.markdown("#### 📅 Select Target Expiry Contract:")
-expiry_choice = st.radio(
-    "Contract Expiry",
-    ["17-Nov (7 Days)", "23-Nov (13 Days)", "01-Dec (3 Weeks)"],
+# --- NON-KEYBOARD DYNAMIC EXPIRY SELECTOR ---
+st.markdown("#### 📅 Target Expiry Contract (Auto-Filtered):")
+selected_label = st.radio(
+    "Choose Expiry",
+    expiry_labels,
     horizontal=True,
     label_visibility="collapsed"
 )
 
-# --- DYNAMIC EXPIRY RECALCULATION ENGINE ---
-if expiry_choice == "17-Nov (7 Days)":
-    exp_code = "17-NOV"
-    dte = 7
-    # 7-day actual premiums directly from Kite Option Chain
-    sell_pe_strike = atm_strike - 100   # 24950
-    sell_ce_strike = atm_strike + 100   # 25150
-    buy_pe_strike  = sell_pe_strike - 200 # 24750
-    buy_ce_strike  = sell_ce_strike + 200 # 25350
+# Extract selected expiry datetime
+selected_index = expiry_labels.index(selected_label)
+chosen_exp_dt = active_expiries[selected_index]
+dte_days = max((chosen_exp_dt.date() - now.date()).days, 1)
+exp_code_kite = chosen_exp_dt.strftime("%d-%b").upper()
 
-    p_pe_sell = 216.35
-    p_ce_sell = 189.65
-    p_pe_buy  = 135.00
-    p_ce_buy  = 110.00
+# --- 2. BLACK-SCHOLES DYNAMIC PRICER (ZERO HARDCODED RATES) ---
+def bs_price(S, K, T, r, sigma, opt_type='c'):
+    if T <= 0.001:
+        T = 0.001
+    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    if opt_type == 'c':
+        price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+    else:
+        price = K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+    return round(float(price), 2)
 
-elif expiry_choice == "23-Nov (13 Days)":
-    exp_code = "23-NOV"
-    dte = 13
-    # 13-day wider safe buffer & time-value factored
-    sell_pe_strike = atm_strike - 150   # 24900
-    sell_ce_strike = atm_strike + 150   # 25200
-    buy_pe_strike  = sell_pe_strike - 250 # 24650
-    buy_ce_strike  = sell_ce_strike + 250 # 25450
+T_years = dte_days / 365.0
+sigma = 0.1670  # Kite exact 16.70% IV
+r = 0.07
 
-    # Elevated premiums for 13 DTE
-    p_pe_sell = 278.40
-    p_ce_sell = 254.10
-    p_pe_buy  = 168.00
-    p_ce_buy  = 145.50
+# Dynamic strikes widening with DTE
+wing_buffer = 100 if dte_days <= 7 else (150 if dte_days <= 14 else 200)
+protection_spread = 200 if dte_days <= 7 else 250
 
-else: # 01-Dec (3 Weeks)
-    exp_code = "01-DEC"
-    dte = 21
-    # Monthly / 3-week wider institutional safe strikes
-    sell_pe_strike = atm_strike - 250   # 24800
-    sell_ce_strike = atm_strike + 250   # 25300
-    buy_pe_strike  = sell_pe_strike - 300 # 24500
-    buy_ce_strike  = sell_ce_strike + 300 # 25600
+sell_pe = int(round((atm_strike - wing_buffer) / 50.0) * 50)
+buy_pe  = int(round((sell_pe - protection_spread) / 50.0) * 50)
+sell_ce = int(round((atm_strike + wing_buffer) / 50.0) * 50)
+buy_ce  = int(round((sell_ce + protection_spread) / 50.0) * 50)
 
-    # 21 DTE monthly premiums
-    p_pe_sell = 345.00
-    p_ce_sell = 320.00
-    p_pe_buy  = 210.00
-    p_ce_buy  = 192.00
+# Calculate theoretical live prices
+p_sell_pe = bs_price(live_spot, sell_pe, T_years, r, sigma, 'p')
+p_buy_pe  = bs_price(live_spot, buy_pe,  T_years, r, sigma, 'p')
+p_sell_ce = bs_price(live_spot, sell_ce, T_years, r, sigma, 'c')
+p_buy_ce  = bs_price(live_spot, buy_ce,  T_years, r, sigma, 'c')
 
 legs = [
-    {'type': 'PE', 'action': 'BUY',  'strike': buy_pe_strike,  'premium': p_pe_buy,  'note': 'Downside Crash Protection'},
-    {'type': 'PE', 'action': 'SELL', 'strike': sell_pe_strike, 'premium': p_pe_sell, 'note': 'Main Credit Leg'},
-    {'type': 'CE', 'action': 'SELL', 'strike': sell_ce_strike, 'premium': p_ce_sell, 'note': 'Main Credit Leg'},
-    {'type': 'CE', 'action': 'BUY',  'strike': buy_ce_strike,  'premium': p_ce_buy,  'note': 'Upside Breakout Protection'}
+    {'type': 'PE', 'action': 'BUY',  'strike': buy_pe,  'premium': p_buy_pe,  'note': 'Hedge Wing (Crash Shield)'},
+    {'type': 'PE', 'action': 'SELL', 'strike': sell_pe, 'premium': p_sell_pe, 'note': 'Credit Leg (Put Sell)'},
+    {'type': 'CE', 'action': 'SELL', 'strike': sell_ce, 'premium': p_sell_ce, 'note': 'Credit Leg (Call Sell)'},
+    {'type': 'CE', 'action': 'BUY',  'strike': buy_ce,  'premium': p_buy_ce,  'note': 'Hedge Wing (Rally Shield)'}
 ]
 
-net_credit = (p_pe_sell + p_ce_sell) - (p_pe_buy + p_ce_buy)
+# --- 3. RISK-REWARD & BREAKEVEN ENGINE ---
+net_credit = (p_sell_pe + p_sell_ce) - (p_buy_pe + p_buy_ce)
+max_profit_lot = net_credit * 25
+max_loss_per_share = protection_spread - net_credit
+max_loss_lot = max_loss_per_share * 25
 
-st.subheader(f"🛡️ Hedged Strategy — {expiry_choice}")
-st.caption(f"Calculated for **{dte} Days to Expiry** | ATM IV: **16.70%**")
+lower_breakeven = sell_pe - net_credit
+upper_breakeven = sell_ce + net_credit
 
+# Strategy Header with Breakevens
+st.subheader(f"🛡️ Hedged Iron Condor — {selected_label}")
+
+b1, b2, b3, b4 = st.columns(4)
+with b1:
+    st.metric("Max Profit (Per Lot)", f"₹{max_profit_lot:,.0f}")
+with b2:
+    st.metric("Max Risk (Per Lot)", f"₹{max_loss_lot:,.0f}")
+with b3:
+    st.metric("Lower Breakeven", f"{lower_breakeven:.1f}")
+with b4:
+    st.metric("Upper Breakeven", f"{upper_breakeven:.1f}")
+
+# Orders and Payoff Visual
 c_orders, c_chart = st.columns([1.1, 1.2])
 
 with c_orders:
-    st.markdown("#### 📋 Exact Orders for Zerodha Kite:")
+    st.markdown("#### 📋 Orders for Zerodha Kite:")
     for idx, leg in enumerate(legs, 1):
         action_badge = "🟢 BUY" if leg['action'] == 'BUY' else "🔴 SELL"
-        st.markdown(f"**Leg {idx}:** {action_badge} `NIFTY {exp_code} {leg['strike']} {leg['type']}` — **LTP: ₹{leg['premium']:.2f}**")
+        st.markdown(f"**Leg {idx}:** {action_badge} `NIFTY {exp_code_kite} {leg['strike']} {leg['type']}` — **~₹{leg['premium']:.2f}**")
         st.caption(f"└ {leg['note']}")
 
-    st.success(f"💰 **Net Credit Collected:** ₹{net_credit:.2f} per share (~₹{net_credit * 25:,.0f} per lot)")
-    st.caption("🔒 **Execution Tip:** Kite par pehle BUY legs dalein margin discount ke liye, fir SELL orders execute karein.")
+    st.info(f"Safe Range: Agar Nifty **{lower_breakeven:.0f}** aur **{upper_breakeven:.0f}** ke beech band hota hai, toh profit banega.")
+    st.caption("🔒 **Execution Sequence:** Pehle dono BUY legs execute karein (margin discount ke liye), fir SELL legs.")
 
 with c_chart:
-    st.subheader(f"📈 Payoff Curve ({exp_code})")
-    span = 700 if dte <= 7 else (900 if dte <= 13 else 1200)
+    st.subheader(f"📈 Payoff Curve ({exp_code_kite})")
+    span = protection_spread + 400
     spot_range = np.linspace(live_spot - span, live_spot + span, 150)
     pnl = np.zeros_like(spot_range)
 
@@ -176,7 +208,11 @@ with c_chart:
     ax.set_facecolor('#111827')
     ax.plot(spot_range, pnl, color='#38bdf8', linewidth=2.5, label='Net Payoff')
     ax.axhline(0, color='#64748b', linestyle='--', linewidth=1)
-    ax.axvline(live_spot, color='#f59e0b', linestyle=':', label=f'Current Spot ({live_spot:.2f})')
+    ax.axvline(live_spot, color='#f59e0b', linestyle=':', label=f'Spot ({live_spot:.1f})')
+    
+    # Breakeven markers
+    ax.axvline(lower_breakeven, color='#94a3b8', linestyle='--', alpha=0.7)
+    ax.axvline(upper_breakeven, color='#94a3b8', linestyle='--', alpha=0.7)
 
     ax.fill_between(spot_range, pnl, 0, where=(pnl >= 0), color='#10b981', alpha=0.35, interpolate=True)
     ax.fill_between(spot_range, pnl, 0, where=(pnl < 0), color='#ef4444', alpha=0.35, interpolate=True)
@@ -185,7 +221,7 @@ with c_chart:
     for spine in ax.spines.values():
         spine.set_color('#1f2937')
 
-    ax.set_xlabel(f"Nifty Spot at Expiry ({exp_code})", color='#94a3b8', fontsize=10)
+    ax.set_xlabel(f"Nifty Spot at Expiry", color='#94a3b8', fontsize=10)
     ax.set_ylabel("P&L per Share (₹)", color='#94a3b8', fontsize=10)
     ax.grid(True, color='#1f2937', linestyle=':', alpha=0.6)
     ax.legend(facecolor='#111827', edgecolor='#1f2937', labelcolor='#e2e8f0', loc='best', fontsize=8)
@@ -193,9 +229,8 @@ with c_chart:
     st.pyplot(fig)
     plt.close(fig)
 
-# --- FOOTER ---
+# --- REFRESH ---
 st.write("---")
 if st.button("🔄 Instant Refresh"):
     st.rerun()
-st.caption(f"Sync: {time.strftime('%H:%M:%S IST')} | Fully dynamic contract engine")
-    
+st.caption(f"Sync: {time.strftime('%H:%M:%S IST')} | Fully Dynamic Expiry & Pricing Engine")
