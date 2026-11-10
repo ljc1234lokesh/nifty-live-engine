@@ -107,13 +107,15 @@ selected_index = expiry_labels.index(selected_label)
 chosen_exp_dt = active_expiries[selected_index]
 dte_days = max((chosen_exp_dt.date() - now.date()).days, 1)
 
-# --- EXACT ZERODHA WEEKLY TRADING SYMBOL BUILDER ---
+# Normal Display Date (e.g. 17-Nov)
+display_exp_str = chosen_exp_dt.strftime("%d-%b")
+
+# Official Zerodha Weekly Symbol Builder for JSON (e.g. NIFTY26N1724750PE)
 def get_kite_trading_symbol(exp_dt, strike, opt_type):
     yy = exp_dt.strftime("%y")
     m = exp_dt.month
-    # NSE Weekly Month Codes: 1-9 for Jan-Sep, O for Oct, N for Nov, D for Dec
     month_codes = {1: '1', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: 'O', 11: 'N', 12: 'D'}
-    m_code = month_codes[m]
+    m_code = month_codes.get(m, exp_dt.strftime("%b").upper())
     dd = exp_dt.strftime("%d")
     return f"NIFTY{yy}{m_code}{dd}{strike}{opt_type}"
 
@@ -153,7 +155,8 @@ legs = [
         'action': 'BUY',
         'strike': buy_pe,
         'premium': p_buy_pe,
-        'symbol': get_kite_trading_symbol(chosen_exp_dt, buy_pe, 'PE'),
+        'readable_name': f"NIFTY {display_exp_str} {buy_pe} PE",
+        'kite_symbol': get_kite_trading_symbol(chosen_exp_dt, buy_pe, 'PE'),
         'note': 'Hedge Wing (Crash Shield)'
     },
     {
@@ -161,7 +164,8 @@ legs = [
         'action': 'BUY',
         'strike': buy_ce,
         'premium': p_buy_ce,
-        'symbol': get_kite_trading_symbol(chosen_exp_dt, buy_ce, 'CE'),
+        'readable_name': f"NIFTY {display_exp_str} {buy_ce} CE",
+        'kite_symbol': get_kite_trading_symbol(chosen_exp_dt, buy_ce, 'CE'),
         'note': 'Hedge Wing (Rally Shield)'
     },
     {
@@ -169,7 +173,8 @@ legs = [
         'action': 'SELL',
         'strike': sell_pe,
         'premium': p_sell_pe,
-        'symbol': get_kite_trading_symbol(chosen_exp_dt, sell_pe, 'PE'),
+        'readable_name': f"NIFTY {display_exp_str} {sell_pe} PE",
+        'kite_symbol': get_kite_trading_symbol(chosen_exp_dt, sell_pe, 'PE'),
         'note': 'Credit Leg (Put Sell)'
     },
     {
@@ -177,7 +182,8 @@ legs = [
         'action': 'SELL',
         'strike': sell_ce,
         'premium': p_sell_ce,
-        'symbol': get_kite_trading_symbol(chosen_exp_dt, sell_ce, 'CE'),
+        'readable_name': f"NIFTY {display_exp_str} {sell_ce} CE",
+        'kite_symbol': get_kite_trading_symbol(chosen_exp_dt, sell_ce, 'CE'),
         'note': 'Credit Leg (Call Sell)'
     }
 ]
@@ -189,7 +195,7 @@ max_loss_lot = (protection_spread - net_credit) * 25
 lower_breakeven = sell_pe - net_credit
 upper_breakeven = sell_ce + net_credit
 
-# Corrected Win Probability: Integral between Lower BE and Upper BE
+# Win Probability between Breakevens
 stdev = live_spot * sigma * np.sqrt(T_years)
 prob_lower = norm.cdf((lower_breakeven - live_spot) / stdev)
 prob_upper = norm.cdf((upper_breakeven - live_spot) / stdev)
@@ -216,14 +222,15 @@ with c_orders:
     st.markdown("#### 📋 Orders for Zerodha Kite:")
     for idx, leg in enumerate(legs, 1):
         action_badge = "🟢 BUY" if leg['action'] == 'BUY' else "🔴 SELL"
-        st.markdown(f"**Leg {idx}:** {action_badge} **`{leg['symbol']}`** — **~₹{leg['premium']:.2f}**")
+        # NORMAL USER-FRIENDLY VIEW:
+        st.markdown(f"**Leg {idx}:** {action_badge} **`{leg['readable_name']}`** — **~₹{leg['premium']:.2f}**")
         st.caption(f"└ {leg['note']}")
 
-    # True Zerodha Weekly Basket JSON
+    # ACCURATE OFFICIAL ZERODHA BASKET JSON (Inside Copy Expander):
     kite_basket = [
         {
             "variety": "regular",
-            "tradingsymbol": leg['symbol'],
+            "tradingsymbol": leg['kite_symbol'],
             "exchange": "NFO",
             "transaction_type": leg['action'],
             "order_type": "MARKET",
@@ -235,10 +242,10 @@ with c_orders:
     with st.expander("📋 Zerodha Basket JSON (Click to Copy)", expanded=False):
         st.code(json.dumps(kite_basket, indent=2), language="json")
 
-    st.caption("🔒 **Margin Order:** BUY legs pehle list kiye gaye hain taaki margin penalty na lage.")
+    st.caption("🔒 **Execution Sequence:** Pehle BUY legs daalein margin discount ke liye, fir SELL legs.")
 
 with c_chart:
-    st.subheader(f"📈 Payoff Curve ({chosen_exp_dt.strftime('%d-%b')})")
+    st.subheader(f"📈 Payoff Curve ({display_exp_str})")
     span = protection_spread + 400
     spot_range = np.linspace(live_spot - span, live_spot + span, 150)
     pnl = np.zeros_like(spot_range)
@@ -283,4 +290,3 @@ with c_chart:
 # --- FOOTER ---
 st.write("---")
 st.caption(f"Status: Connected | Auto-sync: 15s | Last update: {time.strftime('%H:%M:%S IST')}")
-    
