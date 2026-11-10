@@ -4,6 +4,7 @@ logzero
 websocket-client
 pyotp
 opstrat
+scipy
 matplotlib
 pandas
 numpy
