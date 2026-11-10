@@ -1,5 +1,6 @@
 streamlit
 smartapi-python
+logzero
 pyotp
 opstrat
 matplotlib
