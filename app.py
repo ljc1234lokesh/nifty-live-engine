@@ -238,3 +238,4 @@ with c_chart:
 # --- FOOTER ---
 st.write("---")
 st.caption(f"Status: Connected | Auto-sync: 15s | Last update: {time.strftime('%H:%M:%S IST')}")
+              
