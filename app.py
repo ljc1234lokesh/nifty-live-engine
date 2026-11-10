@@ -92,7 +92,7 @@ with c2:
 with c3:
     st.metric(label="ATM IV / REGIME", value="16.70%", delta="Very High (Sell Edge)")
 with c4:
-    auto_refresh_on = st.toggle("Auto-Refresh (15s)", value=True)
+    auto_refresh_on = st.toggle("Auto-refresh (15s)", value=True)
 
 # Auto-refresh trigger
 if auto_refresh_on:
@@ -145,18 +145,18 @@ legs = [
     {'type': 'CE', 'action': 'BUY',  'strike': buy_ce,  'premium': p_buy_ce,  'note': 'Hedge Wing (Rally Shield)'}
 ]
 
-# --- RISK METRICS & PROBABILITY OF PROFIT ---
+# --- RISK METRICS & PROBABILITY OF PROFIT (FIXED MATH) ---
 net_credit = (p_sell_pe + p_sell_ce) - (p_buy_pe + p_buy_ce)
 max_profit_lot = net_credit * 25
 max_loss_lot = (protection_spread - net_credit) * 25
 lower_breakeven = sell_pe - net_credit
 upper_breakeven = sell_ce + net_credit
 
-# Probability of Profit (Normal distribution area between breakevens)
+# Fixed Probability Calculation: Area under curve between Lower BE and Upper BE
 stdev = live_spot * sigma * np.sqrt(T_years)
-prob_above_lower = 1 - norm.cdf((lower_breakeven - live_spot) / stdev)
-prob_above_upper = 1 - norm.cdf((upper_breakeven - live_spot) / stdev)
-pop_percent = (prob_above_lower - prob_above_upper) * 100
+prob_lower = norm.cdf((lower_breakeven - live_spot) / stdev)
+prob_upper = norm.cdf((upper_breakeven - live_spot) / stdev)
+pop_percent = (prob_upper - prob_lower) * 100
 
 st.subheader(f"🛡️ Hedged Iron Condor — {selected_label}")
 
@@ -182,12 +182,12 @@ with c_orders:
         st.markdown(f"**Leg {idx}:** {action_badge} `NIFTY {exp_code_kite} {leg['strike']} {leg['type']}` — **~₹{leg['premium']:.2f}**")
         st.caption(f"└ {leg['note']}")
 
-    # Zerodha Basket JSON Generator
+    # Clean One-Click Basket Block
     kite_basket = [
         {"variety": "regular", "tradingsymbol": f"NIFTY{chosen_exp_dt.strftime('%y%b').upper()}{leg['strike']}{leg['type']}", "exchange": "NFO", "transaction_type": leg['action'], "order_type": "MARKET", "quantity": 25, "product": "NRML"}
         for leg in legs
     ]
-    with st.expander("📋 Click to view Zerodha Basket JSON (One-Click Import)"):
+    with st.expander("📋 View Zerodha Basket JSON (One-Click)", expanded=False):
         st.code(json.dumps(kite_basket, indent=2), language="json")
 
     st.caption("🔒 **Execution Sequence:** Pehle BUY legs dalein margin benefit ke liye, fir SELL legs.")
@@ -238,4 +238,3 @@ with c_chart:
 # --- FOOTER ---
 st.write("---")
 st.caption(f"Status: Connected | Auto-sync: 15s | Last update: {time.strftime('%H:%M:%S IST')}")
-        
