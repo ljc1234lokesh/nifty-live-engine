@@ -91,20 +91,20 @@ if market_setup == "Sideways / Range-Bound":
         rec_type = "Net Credit (Theta Decay Capture)"
         rec_logic = "High IV environment + Range-bound Spot. Dono taraf ke OTM sell karke buffer capture karein. Expiry tak range mein rehne par max profit."
         legs = [
-            {'op_type': 'pe', 'tr_type': 'buy', 'st': atm_strike - 350, 'op_pr': 18},
-            {'op_type': 'pe', 'tr_type': 'sell', 'st': atm_strike - 150, 'op_pr': 48},
-            {'op_type': 'ce', 'tr_type': 'sell', 'st': atm_strike + 150, 'op_pr': 45},
-            {'op_type': 'ce', 'tr_type': 'buy', 'st': atm_strike + 350, 'op_pr': 16}
+            {'op_type': 'p', 'tr_type': 'buy', 'st': atm_strike - 350, 'op_pr': 18},
+            {'op_type': 'p', 'tr_type': 'sell', 'st': atm_strike - 150, 'op_pr': 48},
+            {'op_type': 'c', 'tr_type': 'sell', 'st': atm_strike + 150, 'op_pr': 45},
+            {'op_type': 'c', 'tr_type': 'buy', 'st': atm_strike + 350, 'op_pr': 16}
         ]
     else:
         rec_title = "Hedged Short Strangle (Wings Attached)"
         rec_type = "Delta Neutral Play"
         rec_logic = "Normal IV mein thoda close sell karke safety ke liye protective wings add karein."
         legs = [
-            {'op_type': 'pe', 'tr_type': 'buy', 'st': atm_strike - 300, 'op_pr': 22},
-            {'op_type': 'pe', 'tr_type': 'sell', 'st': atm_strike - 100, 'op_pr': 60},
-            {'op_type': 'ce', 'tr_type': 'sell', 'st': atm_strike + 100, 'op_pr': 58},
-            {'op_type': 'ce', 'tr_type': 'buy', 'st': atm_strike + 300, 'op_pr': 20}
+            {'op_type': 'p', 'tr_type': 'buy', 'st': atm_strike - 300, 'op_pr': 22},
+            {'op_type': 'p', 'tr_type': 'sell', 'st': atm_strike - 100, 'op_pr': 60},
+            {'op_type': 'c', 'tr_type': 'sell', 'st': atm_strike + 100, 'op_pr': 58},
+            {'op_type': 'c', 'tr_type': 'buy', 'st': atm_strike + 300, 'op_pr': 20}
         ]
 
 elif market_setup == "Bullish (Up Trend)":
@@ -112,8 +112,8 @@ elif market_setup == "Bullish (Up Trend)":
     rec_type = "Strictly Defined Risk (Directional)"
     rec_logic = "Direct Call buy karne par premium decay loss dega. ATM Buy karke OTM Sell karne se 50% capital risk lock ho jayega."
     legs = [
-        {'op_type': 'ce', 'tr_type': 'buy', 'st': atm_strike, 'op_pr': 145},
-        {'op_type': 'ce', 'tr_type': 'sell', 'st': atm_strike + 200, 'op_pr': 55}
+        {'op_type': 'c', 'tr_type': 'buy', 'st': atm_strike, 'op_pr': 145},
+        {'op_type': 'c', 'tr_type': 'sell', 'st': atm_strike + 200, 'op_pr': 55}
     ]
 
 elif market_setup == "Bearish (Down Trend)":
@@ -121,8 +121,8 @@ elif market_setup == "Bearish (Down Trend)":
     rec_type = "Strictly Defined Risk (Directional)"
     rec_logic = "Downside trade ke liye ITM/ATM Put buy aur lower OTM Put sell. Agar market slow gire tab bhi profit target achieve hoga."
     legs = [
-        {'op_type': 'pe', 'tr_type': 'buy', 'st': atm_strike, 'op_pr': 140},
-        {'op_type': 'pe', 'tr_type': 'sell', 'st': atm_strike - 200, 'op_pr': 50}
+        {'op_type': 'p', 'tr_type': 'buy', 'st': atm_strike, 'op_pr': 140},
+        {'op_type': 'p', 'tr_type': 'sell', 'st': atm_strike - 200, 'op_pr': 50}
     ]
 
 # --- DISPLAY RECOMMENDATION & PAYOFF ---
@@ -136,7 +136,7 @@ with col_rec:
     st.write("#### 📋 Orders To Execute on Kite:")
     for idx, leg in enumerate(legs, 1):
         action = "🟢 BUY" if leg['tr_type'] == 'buy' else "🔴 SELL"
-        opt = "CE (Call)" if leg['op_type'] == 'ce' else "PE (Put)"
+        opt = "CE (Call)" if leg['op_type'] == 'c' else "PE (Put)"
         st.markdown(f"- **Leg {idx}:** {action} **Nifty {int(leg['st'])} {opt}** (~₹{leg['op_pr']})")
 
     st.caption("Tip: Pehle BUY legs execute karein margin benefit ke liye, fir SELL legs.")
@@ -146,8 +146,8 @@ with col_chart:
     if legs:
         try:
             fig = op.multi_plotter(spot=live_spot, op_list=legs)
-            st.pyplot(plt.gcf())
-            plt.clf()
+            st.pyplot(fig)
+            plt.close(fig)
         except Exception as err:
             st.warning(f"Payoff render status: {err}")
 
@@ -155,3 +155,4 @@ with col_chart:
 st.caption(f"Last updated from Angel One SmartAPI: {time.strftime('%H:%M:%S')}")
 if st.button("🔄 Instant Refresh"):
     st.rerun()
+    
