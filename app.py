@@ -54,20 +54,26 @@ if not smart_api:
 # --- LIVE SPOT & INDIA VIX FETCH ---
 def get_market_data():
     nifty_spot = 25050.0
-    india_vix = 14.2
+    india_vix = 13.8
     try:
-        # Nifty 50 Spot Token: 99926000
         quote_nifty = smart_api.ltpData(exchange="NSE", tradingsymbol="Nifty 50", symboltoken="99926000")
         if quote_nifty.get("status") and "data" in quote_nifty:
-            nifty_spot = float(quote_nifty["data"]["ltp"])
+            val = float(quote_nifty["data"]["ltp"])
+            if val > 10000:
+                nifty_spot = val
     except Exception:
         pass
 
     try:
-        # India VIX Token: 99926009
+        # India VIX Token check
         quote_vix = smart_api.ltpData(exchange="NSE", tradingsymbol="INDIA VIX", symboltoken="99926009")
         if quote_vix.get("status") and "data" in quote_vix:
-            india_vix = float(quote_vix["data"]["ltp"])
+            v_val = float(quote_vix["data"]["ltp"])
+            # VIX is strictly between 8 and 80
+            if 8.0 <= v_val <= 80.0:
+                india_vix = v_val
+            else:
+                india_vix = 13.5
     except Exception:
         pass
 
@@ -76,31 +82,27 @@ def get_market_data():
 live_spot, live_vix = get_market_data()
 atm_strike = int(round(live_spot / 50.0) * 50)
 
-# --- EXPIRY CALCULATION ENGINE ---
-def get_next_expiry():
+# --- NEAREST THURSDAY EXPIRY ENGINE ---
+def get_next_thursday_expiry():
     today = datetime.date.today()
-    # Nifty weekly options contract expiry day (Thursday = 3)
-    days_ahead = 3 - today.weekday()
-    if days_ahead < 0:  # Agar aaj Thursday ke baad hai
-        days_ahead += 7
-    elif days_ahead == 0 and datetime.datetime.now().time() > datetime.time(15, 30):
-        days_ahead += 7
+    # Thursday weekday = 3
+    days_ahead = (3 - today.weekday()) % 7
+    # Agar aaj Thursday hai aur 3:30 PM nikal chuka hai, toh agle hafte ka Thursday
+    if days_ahead == 0 and datetime.datetime.now().time() > datetime.time(15, 30):
+        days_ahead = 7
     expiry_date = today + datetime.timedelta(days_ahead)
     dte = (expiry_date - today).days
     return expiry_date.strftime("%d-%b-%Y"), dte
 
-expiry_str, dte_days = get_next_expiry()
+expiry_str, dte_days = get_next_thursday_expiry()
 
-# --- AUTO MARKET BIAS & AUTO IV ENGINE ---
-# Auto IV status based on Live VIX
+# --- AUTO IV REGIME ---
 if live_vix >= 15.0:
     auto_iv_state = "ELEVATED / HIGH IV"
-    iv_badge = "background-color: #4c0519; color: #fb7185;"
-    iv_advice = "Premiums are inflated. High Theta decay advantage in Net Credit Hedged strategies."
+    iv_advice = f"VIX is {live_vix:.2f}. Premiums are rich; favor Net Credit / Iron Condor."
 else:
     auto_iv_state = "NORMAL / LOW IV"
-    iv_badge = "background-color: #064e3b; color: #34d399;"
-    iv_advice = "Premiums are cheap. Favorable for Defined-Risk Debit Spreads."
+    iv_advice = f"VIX is {live_vix:.2f}. Premiums are cheap; favor Hedged Debit Spreads."
 
 # Top Bar Metrics
 m1, m2, m3, m4 = st.columns([1.2, 1, 1.2, 1.2])
@@ -112,7 +114,7 @@ with m2:
     st.metric(label="ATM STRIKE", value=f"{atm_strike}")
 
 with m3:
-    st.metric(label="INDIA VIX (REAL-TIME IV)", value=f"{live_vix:.2f}")
+    st.metric(label="INDIA VIX", value=f"{live_vix:.2f}")
 
 with m4:
     st.metric(label="NEAREST EXPIRY", value=f"{expiry_str}", delta=f"{dte_days} Days Left", delta_color="off")
@@ -123,7 +125,7 @@ st.write("---")
 col_sig1, col_sig2 = st.columns(2)
 
 with col_sig1:
-    st.markdown("#### 🧠 Auto Market Sentiment Engine")
+    st.markdown("#### 🧠 Market Sentiment Engine")
     auto_mode = st.radio("Signal Mode:", ["🤖 Fully Automatic (Quant Rule)", "🛠️ Manual Override"], horizontal=True)
 
 with col_sig2:
@@ -131,7 +133,6 @@ with col_sig2:
     st.info(f"**IV Regime:** `{auto_iv_state}` | {iv_advice}")
 
 if auto_mode == "🤖 Fully Automatic (Quant Rule)":
-    # Automatic quantitative bias calculation based on Spot vs ATM alignment
     drift = live_spot - atm_strike
     if drift > 18:
         detected_bias = "Bullish (Up Trend)"
@@ -139,7 +140,7 @@ if auto_mode == "🤖 Fully Automatic (Quant Rule)":
         detected_bias = "Bearish (Down Trend)"
     else:
         detected_bias = "Sideways / Range-Bound"
-    st.caption(f"Engine auto-detected bias: **{detected_bias}** (Calculated from ATM Drift & Live Liquidity).")
+    st.caption(f"Engine auto-detected bias: **{detected_bias}** (Calculated from Spot vs ATM alignment).")
 else:
     detected_bias = st.selectbox("Select Bias manually:", ["Sideways / Range-Bound", "Bullish (Up Trend)", "Bearish (Down Trend)"])
 
@@ -149,7 +150,7 @@ if detected_bias == "Sideways / Range-Bound":
     if live_vix >= 15.0:
         rec_title = "Defensive Iron Condor"
         rec_type = "Net Credit (Double Hedged Range Capture)"
-        rec_logic = f"High VIX ({live_vix:.2f}) provides wide buffer. Selling wings 150 pts away and buying wings 350 pts away for fixed capped risk."
+        rec_logic = f"VIX is {live_vix:.2f}. Wide protective wings deployed for theta decay."
         legs = [
             {'type': 'PE', 'action': 'BUY', 'strike': atm_strike - 350, 'premium': 18},
             {'type': 'PE', 'action': 'SELL', 'strike': atm_strike - 150, 'premium': 48},
@@ -159,7 +160,7 @@ if detected_bias == "Sideways / Range-Bound":
     else:
         rec_title = "Hedged Short Strangle (Wings Attached)"
         rec_type = "Delta Neutral Play"
-        rec_logic = "Normal IV environment. Compact wing structure to maximize premium erosion while keeping black-swan hedge intact."
+        rec_logic = f"VIX is normal ({live_vix:.2f}). Balanced credit collection with defined outer protection."
         legs = [
             {'type': 'PE', 'action': 'BUY', 'strike': atm_strike - 300, 'premium': 22},
             {'type': 'PE', 'action': 'SELL', 'strike': atm_strike - 100, 'premium': 60},
@@ -170,7 +171,7 @@ if detected_bias == "Sideways / Range-Bound":
 elif detected_bias == "Bullish (Up Trend)":
     rec_title = "Bull Call Debit Spread"
     rec_type = "Strictly Defined Risk (Directional)"
-    rec_logic = "Controlled capital deployment. ATM Call bought with OTM Call sold to offset Theta decay."
+    rec_logic = "Controlled capital deployment. ATM Call bought with OTM Call sold to offset decay."
     legs = [
         {'type': 'CE', 'action': 'BUY', 'strike': atm_strike, 'premium': 145},
         {'type': 'CE', 'action': 'SELL', 'strike': atm_strike + 200, 'premium': 55}
@@ -179,7 +180,7 @@ elif detected_bias == "Bullish (Up Trend)":
 elif detected_bias == "Bearish (Down Trend)":
     rec_title = "Bear Put Debit Spread"
     rec_type = "Strictly Defined Risk (Directional)"
-    rec_logic = "Downside momentum play. ATM Put bought with lower strike Put sold to lock down risk."
+    rec_logic = "Downside momentum play. ATM Put bought with lower strike Put sold to lock risk."
     legs = [
         {'type': 'PE', 'action': 'BUY', 'strike': atm_strike, 'premium': 140},
         {'type': 'PE', 'action': 'SELL', 'strike': atm_strike - 200, 'premium': 50}
@@ -191,7 +192,7 @@ c_rec, c_plot = st.columns([1, 1.2])
 with c_rec:
     st.subheader(f"🛡️ {rec_title}")
     st.markdown(f"**Strategy Category:** `{rec_type}`")
-    st.caption(f"**Expiry Targeted:** `{expiry_str}` ({dte_days} Days to Expiry)")
+    st.caption(f"**Target Expiry:** `{expiry_str}` ({dte_days} Days to Expiry)")
     st.info(f"**Execution Thesis:** {rec_logic}")
 
     st.write("#### 📋 Orders To Place on Kite:")
@@ -222,7 +223,7 @@ with c_plot:
 
         fig, ax = plt.subplots(figsize=(7, 4.5), facecolor='#0b0f19')
         ax.set_facecolor('#111827')
-        ax.plot(spot_range, pnl, color='#38bdf8', linewidth=2.5, label='Strategy Net Payoff')
+        ax.plot(spot_range, pnl, color='#38bdf8', linewidth=2.5, label='Net Payoff')
         ax.axhline(0, color='#64748b', linestyle='--', linewidth=1)
         ax.axvline(live_spot, color='#f59e0b', linestyle=':', label=f'Current Spot ({live_spot:.1f})')
 
@@ -241,7 +242,7 @@ with c_plot:
         st.pyplot(fig)
         plt.close(fig)
 
-# --- REFRESH & TIME FOOTER ---
+# --- REFRESH & FOOTER ---
 st.write("---")
 f1, f2 = st.columns([1, 4])
 with f1:
@@ -249,4 +250,4 @@ with f1:
         st.rerun()
 with f2:
     st.caption(f"Live Connected to Angel One SmartAPI Server | Last Sync: {time.strftime('%H:%M:%S IST')} | Safe Hedged Architecture")
-    
+        
