@@ -277,3 +277,4 @@ with f1:
         st.rerun()
 with f2:
     st.caption(f"Live Connected to Angel One SmartAPI Server | Last Sync: {time.strftime('%H:%M:%S IST')} | Safe Hedged Architecture")
+        
