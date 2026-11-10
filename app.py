@@ -1,8 +1,8 @@
 import streamlit as st
 import pyotp
 from SmartApi import SmartConnect
-import opstrat as op
 import matplotlib.pyplot as plt
+import numpy as np
 import time
 
 st.set_page_config(page_title="Nifty Live Strategy Radar", layout="wide", initial_sidebar_state="collapsed")
@@ -30,7 +30,7 @@ except Exception:
     st.stop()
 
 # --- INITIALIZE SMARTAPI SESSION (CACHED) ---
-@st.cache_resource(ttl=1800)  # Session 30 minute tak valid rahega
+@st.cache_resource(ttl=1800)
 def get_angel_session(api_key, client_code, pwd, totp_sec):
     try:
         smart_api = SmartConnect(api_key)
@@ -39,7 +39,7 @@ def get_angel_session(api_key, client_code, pwd, totp_sec):
         if session.get("status"):
             return smart_api
         return None
-    except Exception as e:
+    except Exception:
         return None
 
 smart_api = get_angel_session(API_KEY, CLIENT_CODE, PASSWORD, TOTP_SECRET)
@@ -51,13 +51,12 @@ if not smart_api:
 # --- FETCH REAL-TIME NIFTY SPOT ---
 def fetch_live_nifty():
     try:
-        # Nifty 50 Token: 99926000, Exchange: NSE
         quote = smart_api.ltpData(exchange="NSE", tradingsymbol="Nifty 50", symboltoken="99926000")
         if quote.get("status") and "data" in quote:
             return float(quote["data"]["ltp"])
     except Exception:
         pass
-    return 24400.0  # Fallback
+    return 25050.0
 
 live_spot = fetch_live_nifty()
 atm_strike = int(round(live_spot / 50.0) * 50)
@@ -91,20 +90,20 @@ if market_setup == "Sideways / Range-Bound":
         rec_type = "Net Credit (Theta Decay Capture)"
         rec_logic = "High IV environment + Range-bound Spot. Dono taraf ke OTM sell karke buffer capture karein. Expiry tak range mein rehne par max profit."
         legs = [
-            {'op_type': 'p', 'tr_type': 'b', 'strike': atm_strike - 350, 'op_pr': 18},
-            {'op_type': 'p', 'tr_type': 's', 'strike': atm_strike - 150, 'op_pr': 48},
-            {'op_type': 'c', 'tr_type': 's', 'strike': atm_strike + 150, 'op_pr': 45},
-            {'op_type': 'c', 'tr_type': 'b', 'strike': atm_strike + 350, 'op_pr': 16}
+            {'type': 'PE', 'action': 'BUY', 'strike': atm_strike - 350, 'premium': 18},
+            {'type': 'PE', 'action': 'SELL', 'strike': atm_strike - 150, 'premium': 48},
+            {'type': 'CE', 'action': 'SELL', 'strike': atm_strike + 150, 'premium': 45},
+            {'type': 'CE', 'action': 'BUY', 'strike': atm_strike + 350, 'premium': 16}
         ]
     else:
         rec_title = "Hedged Short Strangle (Wings Attached)"
         rec_type = "Delta Neutral Play"
         rec_logic = "Normal IV mein thoda close sell karke safety ke liye protective wings add karein."
         legs = [
-            {'op_type': 'p', 'tr_type': 'b', 'strike': atm_strike - 300, 'op_pr': 22},
-            {'op_type': 'p', 'tr_type': 's', 'strike': atm_strike - 100, 'op_pr': 60},
-            {'op_type': 'c', 'tr_type': 's', 'strike': atm_strike + 100, 'op_pr': 58},
-            {'op_type': 'c', 'tr_type': 'b', 'strike': atm_strike + 300, 'op_pr': 20}
+            {'type': 'PE', 'action': 'BUY', 'strike': atm_strike - 300, 'premium': 22},
+            {'type': 'PE', 'action': 'SELL', 'strike': atm_strike - 100, 'premium': 60},
+            {'type': 'CE', 'action': 'SELL', 'strike': atm_strike + 100, 'premium': 58},
+            {'type': 'CE', 'action': 'BUY', 'strike': atm_strike + 300, 'premium': 20}
         ]
 
 elif market_setup == "Bullish (Up Trend)":
@@ -112,8 +111,8 @@ elif market_setup == "Bullish (Up Trend)":
     rec_type = "Strictly Defined Risk (Directional)"
     rec_logic = "Direct Call buy karne par premium decay loss dega. ATM Buy karke OTM Sell karne se 50% capital risk lock ho jayega."
     legs = [
-        {'op_type': 'c', 'tr_type': 'b', 'strike': atm_strike, 'op_pr': 145},
-        {'op_type': 'c', 'tr_type': 's', 'strike': atm_strike + 200, 'op_pr': 55}
+        {'type': 'CE', 'action': 'BUY', 'strike': atm_strike, 'premium': 145},
+        {'type': 'CE', 'action': 'SELL', 'strike': atm_strike + 200, 'premium': 55}
     ]
 
 elif market_setup == "Bearish (Down Trend)":
@@ -121,8 +120,8 @@ elif market_setup == "Bearish (Down Trend)":
     rec_type = "Strictly Defined Risk (Directional)"
     rec_logic = "Downside trade ke liye ITM/ATM Put buy aur lower OTM Put sell. Agar market slow gire tab bhi profit target achieve hoga."
     legs = [
-        {'op_type': 'p', 'tr_type': 'b', 'strike': atm_strike, 'op_pr': 140},
-        {'op_type': 'p', 'tr_type': 's', 'strike': atm_strike - 200, 'op_pr': 50}
+        {'type': 'PE', 'action': 'BUY', 'strike': atm_strike, 'premium': 140},
+        {'type': 'PE', 'action': 'SELL', 'strike': atm_strike - 200, 'premium': 50}
     ]
 
 # --- DISPLAY RECOMMENDATION & PAYOFF ---
@@ -135,21 +134,52 @@ with col_rec:
 
     st.write("#### 📋 Orders To Execute on Kite:")
     for idx, leg in enumerate(legs, 1):
-        action = "🟢 BUY" if leg['tr_type'] == 'b' else "🔴 SELL"
-        opt = "CE (Call)" if leg['op_type'] == 'c' else "PE (Put)"
-        st.markdown(f"- **Leg {idx}:** {action} **Nifty {int(leg['strike'])} {opt}** (~₹{leg['op_pr']})")
+        action = "🟢 BUY" if leg['action'] == 'BUY' else "🔴 SELL"
+        st.markdown(f"- **Leg {idx}:** {action} **Nifty {int(leg['strike'])} {leg['type']}** (~₹{leg['premium']})")
 
     st.caption("Tip: Pehle BUY legs execute karein margin benefit ke liye, fir SELL legs.")
 
 with col_chart:
     st.subheader("📈 Live Payoff Curve")
     if legs:
-        try:
-            fig = op.multi_plotter(spot=live_spot, op_list=legs)
-            st.pyplot(fig)
-            plt.close(fig)
-        except Exception as err:
-            st.warning(f"Payoff render status: {err}")
+        # Native thread-safe Matplotlib Plotting
+        spot_range = np.linspace(live_spot - 600, live_spot + 600, 100)
+        pnl = np.zeros_like(spot_range)
+
+        for leg in legs:
+            k = leg['strike']
+            prem = leg['premium']
+            if leg['type'] == 'CE':
+                intrinsic = np.maximum(0, spot_range - k)
+            else:
+                intrinsic = np.maximum(0, k - spot_range)
+            
+            if leg['action'] == 'BUY':
+                pnl += (intrinsic - prem)
+            else:
+                pnl += (prem - intrinsic)
+
+        fig, ax = plt.subplots(figsize=(7, 4.5), facecolor='#0f172a')
+        ax.set_facecolor('#1e293b')
+        ax.plot(spot_range, pnl, color='#38bdf8', linewidth=2.5, label='Strategy Payoff')
+        ax.axhline(0, color='#64748b', linestyle='--', linewidth=1)
+        ax.axvline(live_spot, color='#f59e0b', linestyle=':', label='Current Spot')
+
+        # Green for Profit, Red for Loss
+        ax.fill_between(spot_range, pnl, 0, where=(pnl >= 0), color='#10b981', alpha=0.35, interpolate=True)
+        ax.fill_between(spot_range, pnl, 0, where=(pnl < 0), color='#ef4444', alpha=0.35, interpolate=True)
+
+        ax.tick_params(colors='#94a3b8', labelsize=9)
+        for spine in ax.spines.values():
+            spine.set_color('#334155')
+
+        ax.set_xlabel("NIFTY Spot at Expiry", color='#94a3b8', fontsize=10)
+        ax.set_ylabel("P&L per Share (₹)", color='#94a3b8', fontsize=10)
+        ax.grid(True, color='#334155', linestyle=':', alpha=0.6)
+        ax.legend(facecolor='#1e293b', edgecolor='#334155', labelcolor='#e2e8f0', loc='best', fontsize=8)
+
+        st.pyplot(fig)
+        plt.close(fig)
 
 # Auto refresh trigger
 st.caption(f"Last updated from Angel One SmartAPI: {time.strftime('%H:%M:%S')}")
