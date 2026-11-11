@@ -26,7 +26,6 @@ st.markdown("""
     header[data-testid="stHeader"] { display: none !important; }
     .stRadio [role="radiogroup"] { gap: 12px; padding-top: 2px; flex-wrap: wrap; }
     
-    /* Auto-fitting Metric Grid that NEVER cuts text with '...' */
     .kpi-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
@@ -110,7 +109,7 @@ if not smart_api:
     st.error("❌ Angel One API se connect nahi ho paya.")
     st.stop()
 
-# --- 1. OFFICIAL SCRIP MASTER CACHE ---
+# --- 1. OFFICIAL SCRIP MASTER CACHE (WITH EXACT LOT SIZE) ---
 @st.cache_data(ttl=43200)
 def load_angel_nfo_master():
     url = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
@@ -119,9 +118,10 @@ def load_angel_nfo_master():
     df = pd.DataFrame(data)
     df = df[(df["exch_seg"] == "NFO") & (df["name"] == "NIFTY") & (df["instrumenttype"] == "OPTIDX")].copy()
     df["strike_int"] = (pd.to_numeric(df["strike"], errors="coerce") / 100).round().astype(int)
+    df["lotsize_int"] = pd.to_numeric(df["lotsize"], errors="coerce").fillna(65).astype(int)
     df["opt_type"] = df["symbol"].str[-2:]
     df["expiry_dt"] = pd.to_datetime(df["expiry"], format="%d%b%Y", errors="coerce").dt.date
-    return df[["token", "symbol", "expiry", "expiry_dt", "strike_int", "opt_type"]]
+    return df[["token", "symbol", "expiry", "expiry_dt", "strike_int", "opt_type", "lotsize_int"]]
 
 nfo_df = load_angel_nfo_master()
 
@@ -196,7 +196,7 @@ with h3:
     auto_refresh_on = st.toggle("Sync (15s)", value=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=15 * 1000, key="crisp_auto_pilot")
+    st_autorefresh(interval=15 * 1000, key="crisp_auto_pilot_65")
 
 selected_idx = expiry_labels.index(selected_label)
 chosen_exp_date = top_expiries[selected_idx]
@@ -255,7 +255,7 @@ else:
             {"type": "CE", "action": "BUY",  "strike": buy_ce,  "note": "Upside Wing"}
         ]
 
-# --- 6. BATCH LIVE LTP FETCHER ---
+# --- 6. BATCH LIVE LTP FETCHER & EXACT LOT SIZE (65) ---
 verified_baseline_chain = {
     (24650, "PE"): 105.50, (24700, "PE"): 120.00, (24750, "PE"): 135.40,
     (24850, "PE"): 172.00, (24900, "PE"): 193.15, (24950, "PE"): 216.35,
@@ -265,6 +265,13 @@ verified_baseline_chain = {
 }
 
 exp_subset = nfo_df[nfo_df["expiry_dt"] == chosen_exp_date]
+
+# Auto-detect official Nifty Lot Size from Master (Strict Default = 65)
+LOT_SIZE = 65
+if not exp_subset.empty and "lotsize_int" in exp_subset.columns:
+    detected_lot = int(exp_subset["lotsize_int"].iloc[0])
+    if detected_lot > 0:
+        LOT_SIZE = detected_lot
 
 def get_contract_info(strike_val, opt_type_val):
     row = exp_subset[(exp_subset["strike_int"] == strike_val) & (exp_subset["opt_type"] == opt_type_val)]
@@ -313,7 +320,7 @@ for spec in leg_specs:
         "note": spec["note"]
     })
 
-# --- 7. PAYOFF & RISK COMPUTATION ---
+# --- 7. PAYOFF & RISK COMPUTATION (USING ACTUAL 65 LOT SIZE) ---
 spot_range = np.linspace(live_spot - 750, live_spot + 750, 250)
 pnl = np.zeros_like(spot_range)
 net_credit = 0.0
@@ -324,8 +331,8 @@ for leg in display_legs:
     intrinsic = np.maximum(0, spot_range - k) if leg["type"] == "CE" else np.maximum(0, k - spot_range)
     pnl += (intrinsic - prem) if leg["action"] == "BUY" else (prem - intrinsic)
 
-max_profit_lot = np.max(pnl) * 25
-max_loss_lot = abs(np.min(pnl)) * 25
+max_profit_lot = np.max(pnl) * LOT_SIZE
+max_loss_lot = abs(np.min(pnl)) * LOT_SIZE
 
 profitable_spots = spot_range[pnl >= 0]
 lower_be = profitable_spots[0] if len(profitable_spots) > 0 else live_spot - 200
@@ -343,7 +350,7 @@ st.markdown(f"""
     <div class="kpi-card">
         <div class="kpi-label">Nifty 50 Spot</div>
         <div class="kpi-val">₹{live_spot:,.1f}</div>
-        <div class="kpi-sub">ATM Strike: {atm_strike}</div>
+        <div class="kpi-sub">ATM: {atm_strike} | Lot: {LOT_SIZE}</div>
     </div>
     <div class="kpi-card">
         <div class="kpi-label">India VIX</div>
@@ -356,19 +363,19 @@ st.markdown(f"""
         <div class="kpi-sub">BE: {lower_be:.0f} – {upper_be:.0f}</div>
     </div>
     <div class="kpi-card">
-        <div class="kpi-label">Max Profit / Lot</div>
+        <div class="kpi-label">Max Profit (1 Lot = {LOT_SIZE})</div>
         <div class="kpi-val" style="color:#10b981;">₹{max_profit_lot:,.0f}</div>
-        <div class="kpi-sub">Credit: +{net_credit:.1f} pts</div>
+        <div class="kpi-sub">Credit: +{net_credit:.2f} pts</div>
     </div>
     <div class="kpi-card">
-        <div class="kpi-label">Max Risk / Lot</div>
+        <div class="kpi-label">Max Risk (1 Lot = {LOT_SIZE})</div>
         <div class="kpi-val" style="color:#ef4444;">₹{max_loss_lot:,.0f}</div>
         <div class="kpi-sub" style="color:#94a3b8;">R:R = 1 : {1/rr_ratio:.2f}</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# --- ROW 3: UNIFIED STRATEGY + ENTRY CLOCK BANNER (NO '...' CUTOFF) ---
+# --- ROW 3: UNIFIED STRATEGY + ENTRY CLOCK BANNER ---
 st.markdown(f"""
 <div class="signal-banner">
     <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; margin-bottom:3px;">
@@ -388,7 +395,7 @@ with col_left:
         badge_text = "🟢 BUY" if leg["action"] == "BUY" else "🔴 SELL"
         st.markdown(
             f"<div class='leg-box' style='border-left-color:{badge_color}'>"
-            f"<div><b>Leg {idx}:</b> {badge_text} <code>{leg['readable']}</code> <span style='color:#94a3b8;font-size:0.74rem'>({leg['note']})</span></div>"
+            f"<div><b>Leg {idx}:</b> {badge_text} <code>{leg['readable']}</code> <span style='color:#94a3b8;font-size:0.74rem'>({leg['note']} | Qty: {LOT_SIZE})</span></div>"
             f"<div style='font-weight:700;color:#f8fafc'>₹{leg['premium']:.2f}</div>"
             f"</div>",
             unsafe_allow_html=True
@@ -398,32 +405,32 @@ with col_left:
     kite_basket = [
         {
             "variety": "regular", "tradingsymbol": leg["kite_sym"], "exchange": "NFO",
-            "transaction_type": leg["action"], "order_type": "MARKET", "quantity": 25, "product": "NRML"
+            "transaction_type": leg["action"], "order_type": "MARKET", "quantity": LOT_SIZE, "product": "NRML"
         }
         for leg in json_legs
     ]
-    with st.expander("📋 Zerodha Basket JSON (1-Click Copy — BUY First Sorted)", expanded=False):
+    with st.expander(f"📋 Zerodha Basket JSON (1 Lot = {LOT_SIZE} Qty — BUY First)", expanded=False):
         st.code(json.dumps(kite_basket, indent=2), language="json")
-    st.caption(f"🔒 Margin Safe: JSON auto-orders BUY legs first | Last Sync: {ist_time_str}")
+    st.caption(f"🔒 Margin Safe: JSON auto-orders BUY legs first (Qty: {LOT_SIZE}) | Synced: {ist_time_str}")
 
 with col_right:
     fig, ax = plt.subplots(figsize=(6.8, 2.75), facecolor="#0b0f19")
     ax.set_facecolor("#111827")
-    ax.plot(spot_range, pnl, color="#38bdf8", linewidth=2, label="Payoff")
+    ax.plot(spot_range, pnl * LOT_SIZE, color="#38bdf8", linewidth=2, label="Total P&L (₹)")
     ax.axhline(0, color="#64748b", linestyle="--", linewidth=0.9)
     ax.axvline(live_spot, color="#f59e0b", linestyle=":", label=f"Spot ({live_spot:.0f})")
     ax.axvline(lower_be, color="#94a3b8", linestyle="--", alpha=0.6)
     ax.axvline(upper_be, color="#94a3b8", linestyle="--", alpha=0.6)
 
-    ax.fill_between(spot_range, pnl, 0, where=(pnl >= 0), color="#10b981", alpha=0.35, interpolate=True)
-    ax.fill_between(spot_range, pnl, 0, where=(pnl < 0), color="#ef4444", alpha=0.35, interpolate=True)
+    ax.fill_between(spot_range, pnl * LOT_SIZE, 0, where=(pnl >= 0), color="#10b981", alpha=0.35, interpolate=True)
+    ax.fill_between(spot_range, pnl * LOT_SIZE, 0, where=(pnl < 0), color="#ef4444", alpha=0.35, interpolate=True)
 
     ax.tick_params(colors="#94a3b8", labelsize=8)
     for spine in ax.spines.values():
         spine.set_color("#1f2937")
 
     ax.set_xlabel(f"Nifty Expiry Spot | Breakevens: {lower_be:.0f} — {upper_be:.0f}", color="#94a3b8", fontsize=8.5)
-    ax.set_ylabel("P&L / Share (₹)", color="#94a3b8", fontsize=8.5)
+    ax.set_ylabel(f"Total P&L (₹ for {LOT_SIZE} Qty)", color="#94a3b8", fontsize=8.5)
     ax.grid(True, color="#1f2937", linestyle=":", alpha=0.6)
     ax.legend(facecolor="#111827", edgecolor="#1f2937", labelcolor="#e2e8f0", loc="upper right", fontsize=7.5)
     plt.tight_layout(pad=0.4)
