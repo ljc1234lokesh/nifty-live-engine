@@ -122,24 +122,36 @@ def load_angel_nfo_master():
 
 nfo_df = load_angel_nfo_master()
 
-# --- 2. LIVE SPOT & VIX ---
+# --- 2. LIVE INDICES (NIFTY, BANKNIFTY, SENSEX, VIX) ---
 @st.cache_data(ttl=10)
-def get_live_spot_and_vix():
-    spot = 25106.25
-    vix = 16.70
+def get_live_indices():
+    # Fallback default values
+    data_out = {
+        "nifty": 25124.80,
+        "banknifty": 51800.50,
+        "sensex": 81900.00,
+        "vix": 16.70
+    }
     try:
-        res = smart_api.getMarketData("LTP", {"NSE": ["99926000", "99926009"]})
+        # Token IDs: Nifty 50 (99926000), BankNifty (99926001), Sensex (99919000), India VIX (99926009)
+        res = smart_api.getMarketData("LTP", {"NSE": ["99926000", "99926001", "99919000", "99926009"]})
         if res and res.get("status") and "data" in res:
             for item in res["data"].get("fetched", []):
-                if item["symbolToken"] == "99926000":
-                    spot = float(item["ltp"])
-                elif item["symbolToken"] == "99926009" and 8.0 <= float(item["ltp"]) <= 60.0:
-                    vix = float(item["ltp"])
+                tok = item["symbolToken"]
+                ltp = float(item["ltp"])
+                if tok == "99926000": data_out["nifty"] = ltp
+                elif tok == "99926001": data_out["banknifty"] = ltp
+                elif tok == "99919000": data_out["sensex"] = ltp
+                elif tok == "99926009" and 8.0 <= ltp <= 60.0: data_out["vix"] = ltp
     except Exception:
         pass
-    return spot, vix
+    return data_out
 
-live_spot, live_vix = get_live_spot_and_vix()
+indices = get_live_indices()
+live_spot = indices["nifty"]
+live_banknifty = indices["banknifty"]
+live_sensex = indices["sensex"]
+live_vix = indices["vix"]
 atm_strike = int(round(live_spot / 50.0) * 50)
 
 # --- 3. IST ENTRY TIMING & QUANT CLOCK ---
@@ -174,7 +186,7 @@ else:
     entry_advice = "Closing Gamma Move! Avoid New Positions"
     sig_color = "#f97316"
 
-# --- 4. EXPIRY SELECTOR ---
+# --- 4. EXPIRY SELECTOR & TOP TICKER STRIP ---
 today_date = ist_now.date()
 valid_expiries = sorted([d for d in nfo_df["expiry_dt"].dropna().unique() if d >= today_date])
 if not valid_expiries:
@@ -182,6 +194,17 @@ if not valid_expiries:
 
 top_expiries = valid_expiries[:4]
 expiry_labels = [f"{d.strftime('%d-%b')} ({max((d - today_date).days, 1)}d)" for d in top_expiries]
+
+# Top Ticker Bar for Indices
+t1, t2, t3 = st.columns(3)
+with t1:
+    st.markdown(f"**📉 NIFTY:** ₹{live_spot:,.2f}")
+with t2:
+    st.markdown(f"**🏦 BANKNIFTY:** ₹{live_banknifty:,.2f}")
+with t3:
+    st.markdown(f"**📊 SENSEX:** ₹{live_sensex:,.2f}")
+
+st.markdown("---")
 
 c_head1, c_head2, c_head3 = st.columns([1.2, 2.3, 0.8])
 with c_head1:
@@ -192,7 +215,7 @@ with c_head3:
     auto_refresh_on = st.toggle("Sync (15s)", value=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=15 * 1000, key="institutional_clean_refresh")
+    st_autorefresh(interval=15 * 1000, key="indices_terminal_refresh")
 
 selected_idx = expiry_labels.index(selected_label)
 chosen_exp_date = top_expiries[selected_idx]
@@ -315,14 +338,14 @@ stdev = live_spot * sigma * np.sqrt(T_years)
 pop_percent = (norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100
 rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
-# --- SECTION 1: INSTITUTIONAL ANALYTICS DASHBOARD ---
+# --- SECTION 1: INSTITUTIONAL ANALYTICS DASHBOARD (WITH INDIA VIX) ---
 st.markdown("### 📊 Institutional OI & Sentiment Dashboard")
 st.markdown(f"""
 <div class="analytics-grid">
     <div class="card">
-        <div class="card-label">Nifty Spot Price</div>
-        <div class="card-val">₹{live_spot:,.2f}</div>
-        <div class="card-sub">ATM Strike: {atm_strike}</div>
+        <div class="card-label">India VIX</div>
+        <div class="card-val" style="color:#f59e0b;">{live_vix:.2f}%</div>
+        <div class="card-sub">Market Volatility</div>
     </div>
     <div class="card">
         <div class="card-label">Live PCR Ratio</div>
@@ -410,7 +433,7 @@ with col_right:
     ax.fill_between(spot_range, pnl * LOT_SIZE, 0, where=(pnl >= 0), color="#10b981", alpha=0.35, interpolate=True)
     ax.fill_between(spot_range, pnl * LOT_SIZE, 0, where=(pnl < 0), color="#ef4444", alpha=0.35, interpolate=True)
 
-    ax.tick_pages = ax.tick_params(colors="#94a3b8", labelsize=8.5)
+    ax.tick_params(colors="#94a3b8", labelsize=8.5)
     for spine in ax.spines.values():
         spine.set_color("#1f2937")
 
@@ -422,4 +445,4 @@ with col_right:
 
     st.pyplot(fig)
     plt.close(fig)
-    
+                                     
