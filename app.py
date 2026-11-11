@@ -122,7 +122,7 @@ def load_angel_nfo_master():
 
 nfo_df = load_angel_nfo_master()
 
-# --- 2. LIVE INDICES (FIXED NIFTY, BANKNIFTY, SENSEX, VIX) ---
+# --- 2. LIVE INDICES (FIXED BANKNIFTY MAPPING) ---
 @st.cache_data(ttl=10)
 def get_live_indices():
     data_out = {
@@ -132,14 +132,14 @@ def get_live_indices():
         "vix": 16.70
     }
     try:
-        # Fetching NSE Indices and BSE Sensex via correct segment mapping
-        res_nse = smart_api.getMarketData("LTP", {"NSE": ["99926000", "99926001", "99926009"]})
+        # Fetching Nifty, BankNifty (Trying alternative tokens: 99926001 / 99926012), and VIX from NSE
+        res_nse = smart_api.getMarketData("LTP", {"NSE": ["99926000", "99926001", "99926012", "99926009"]})
         if res_nse and res_nse.get("status") and "data" in res_nse:
             for item in res_nse["data"].get("fetched", []):
                 tok = item["symbolToken"]
                 ltp = float(item["ltp"])
                 if tok == "99926000": data_out["nifty"] = ltp
-                elif tok == "99926001": data_out["banknifty"] = ltp
+                elif tok in ["99926001", "99926012"]: data_out["banknifty"] = ltp
                 elif tok == "99926009" and 8.0 <= ltp <= 60.0: data_out["vix"] = ltp
 
         # Fetching Sensex from BSE segment
