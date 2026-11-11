@@ -13,45 +13,70 @@ from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Nifty Autonomous Quant Engine", layout="wide", initial_sidebar_state="collapsed")
 
-# --- ULTRA-COMPACT SINGLE-FRAME CSS (ZERO SCROLL) ---
+# --- RESPONSIVE ZERO-TRUNCATION SINGLE-FRAME CSS ---
 st.markdown("""
 <style>
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 0.8rem !important;
         padding-bottom: 0.2rem !important;
-        padding-left: 1.2rem !important;
-        padding-right: 1.2rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
         max-width: 100% !important;
     }
     header[data-testid="stHeader"] { display: none !important; }
-    div[data-testid="stMetric"] {
-        background-color: #111827;
-        border: 1px solid #1f2937;
-        padding: 6px 10px !important;
-        border-radius: 6px;
+    .stRadio [role="radiogroup"] { gap: 12px; padding-top: 2px; flex-wrap: wrap; }
+    
+    /* Auto-fitting Metric Grid that NEVER cuts text with '...' */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+        gap: 8px;
+        margin-bottom: 8px;
     }
-    div[data-testid="stMetricLabel"] > div { font-size: 0.72rem !important; color: #94a3b8 !important; }
-    div[data-testid="stMetricValue"] > div { font-size: 1.15rem !important; font-weight: 700 !important; }
-    div[data-testid="stMetricDelta"] > div { font-size: 0.7rem !important; }
-    .stRadio [role="radiogroup"] { gap: 10px; padding-top: 2px; }
+    .kpi-card {
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 7px;
+        padding: 8px 10px;
+    }
+    .kpi-label {
+        font-size: 0.68rem;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        margin-bottom: 2px;
+    }
+    .kpi-val {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #f8fafc;
+        white-space: nowrap;
+    }
+    .kpi-sub {
+        font-size: 0.7rem;
+        color: #10b981;
+        margin-top: 2px;
+        white-space: nowrap;
+    }
+    .signal-banner {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 7px;
+        padding: 8px 12px;
+        margin-bottom: 8px;
+        font-size: 0.82rem;
+        line-height: 1.4;
+    }
     .leg-box {
         background: #111827;
-        border-left: 3px solid #38bdf8;
-        padding: 5px 10px;
-        margin-bottom: 4px;
-        border-radius: 4px;
-        font-size: 0.84rem;
+        border-left: 3.5px solid #38bdf8;
+        padding: 6px 10px;
+        margin-bottom: 5px;
+        border-radius: 5px;
+        font-size: 0.83rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
-    }
-    .regime-bar {
-        background: #1e293b;
-        border: 1px solid #334155;
-        padding: 6px 12px;
-        border-radius: 6px;
-        font-size: 0.82rem;
-        margin-bottom: 6px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -120,31 +145,37 @@ def get_live_spot_and_vix():
 live_spot, live_vix = get_live_spot_and_vix()
 atm_strike = int(round(live_spot / 50.0) * 50)
 
-# --- 3. IST ENTRY TIMING ENGINE (ANSWERS WHEN TO ENTER) ---
+# --- 3. IST ENTRY TIMING ENGINE ---
 utc_now = datetime.datetime.now(datetime.timezone.utc)
 ist_now = utc_now + datetime.timedelta(hours=5, minutes=30)
 ist_time_str = ist_now.strftime("%H:%M:%S IST")
 mins_now = ist_now.hour * 60 + ist_now.minute
-weekday = ist_now.weekday() # 0=Mon, 6=Sun
+weekday = ist_now.weekday()
 
 if weekday >= 5 or mins_now < (9 * 60 + 15) or mins_now > (15 * 60 + 30):
     entry_signal = "⚪ MARKET CLOSED"
-    entry_advice = "Pre/Post Market (9:45 AM par entry lein)"
+    entry_advice = "Best Entry Time: Subah 09:45 AM – 11:30 AM IST"
+    sig_color = "#94a3b8"
 elif mins_now < (9 * 60 + 45):
-    entry_signal = "🔴 WAIT (9:15-9:45)"
-    entry_advice = "High Opening Volatility! 9:45 AM tak rukein"
+    entry_signal = "🔴 WAIT (OPENING NOISE)"
+    entry_advice = "09:15–09:45 AM Freak Trades! 09:45 AM par entry lein"
+    sig_color = "#ef4444"
 elif mins_now <= (11 * 60 + 30):
-    entry_signal = "🟢 PRIME ENTRY"
-    entry_advice = "Best Window! VIX settled, ideal for entry"
+    entry_signal = "🟢 PRIME ENTRY WINDOW"
+    entry_advice = "09:45–11:30 AM Best Institutional Time! VIX Settled"
+    sig_color = "#10b981"
 elif mins_now <= (13 * 60 + 30):
-    entry_signal = "🟡 GOOD (THETA ZONE)"
-    entry_advice = "Mid-day sideways decay, safe entry"
+    entry_signal = "🟡 SAFE THETA ZONE"
+    entry_advice = "11:30–01:30 PM Sideways Decay Zone, Safe for Entry"
+    sig_color = "#eab308"
 elif mins_now <= (14 * 60 + 45):
     entry_signal = "🟢 2ND PRIME WINDOW"
-    entry_advice = "Afternoon trend clear, strong entry zone"
+    entry_advice = "01:30–02:45 PM Afternoon Trend Clear, Good Entry"
+    sig_color = "#10b981"
 else:
-    entry_signal = "🟠 AVOID (CLOSING)"
-    entry_advice = "Last 45m Gamma move, avoid fresh intraday"
+    entry_signal = "🟠 AVOID FRESH ENTRY"
+    entry_advice = "02:45–03:30 PM Closing Gamma Move! Avoid New Trade"
+    sig_color = "#f97316"
 
 # --- 4. EXPIRY LIST ---
 today_date = ist_now.date()
@@ -155,17 +186,17 @@ if not valid_expiries:
 top_expiries = valid_expiries[:4]
 expiry_labels = [f"{d.strftime('%d-%b')} ({max((d - today_date).days, 1)}d)" for d in top_expiries]
 
-# --- ROW 1: COMPACT HEADER + EXPIRY + AUTO-REFRESH ---
-h1, h2, h3 = st.columns([1.5, 1.8, 0.7])
+# --- ROW 1: HEADER + EXPIRY + SYNC ---
+h1, h2, h3 = st.columns([1.1, 2.2, 0.7])
 with h1:
-    st.markdown("#### ⚡ Nifty AI Quant Terminal")
+    st.markdown("#### ⚡ Nifty AI Quant")
 with h2:
     selected_label = st.radio("Expiry", expiry_labels, horizontal=True, label_visibility="collapsed")
 with h3:
     auto_refresh_on = st.toggle("Sync (15s)", value=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=15 * 1000, key="compact_auto_pilot")
+    st_autorefresh(interval=15 * 1000, key="crisp_auto_pilot")
 
 selected_idx = expiry_labels.index(selected_label)
 chosen_exp_date = top_expiries[selected_idx]
@@ -199,8 +230,8 @@ else:
     if live_vix >= 14.5:
         market_regime = "NEUTRAL + HIGH VIX"
         strat_name = "Short Iron Condor"
-        strat_reason = f"Neutral near {atm_strike} & VIX {live_vix:.1f}%. Iron Condor gives max theta edge with capped risk."
-        half_w = 100 if dte_days <= 7 else 200
+        strat_reason = f"Neutral near {atm_strike} & VIX {live_vix:.1f}%. Wide Iron Condor gives strong win-rate & theta."
+        half_w = 150 if dte_days <= 7 else 200
         wing_width = 200
         sell_pe, sell_ce = atm_strike - half_w, atm_strike + half_w
         buy_pe, buy_ce   = sell_pe - wing_width, sell_ce + wing_width
@@ -226,10 +257,11 @@ else:
 
 # --- 6. BATCH LIVE LTP FETCHER ---
 verified_baseline_chain = {
-    (24650, "PE"): 105.50, (24750, "PE"): 135.40, (24850, "PE"): 172.00,
-    (24950, "PE"): 216.35, (25050, "PE"): 265.55, (25050, "CE"): 232.70,
-    (25150, "CE"): 189.65, (25250, "CE"): 152.65, (25350, "CE"): 118.50,
-    (25450, "CE"): 90.20
+    (24650, "PE"): 105.50, (24700, "PE"): 120.00, (24750, "PE"): 135.40,
+    (24850, "PE"): 172.00, (24900, "PE"): 193.15, (24950, "PE"): 216.35,
+    (25050, "PE"): 265.55, (25050, "CE"): 232.70, (25150, "CE"): 189.65,
+    (25200, "CE"): 169.85, (25250, "CE"): 152.65, (25350, "CE"): 118.50,
+    (25400, "CE"): 104.00, (25450, "CE"): 90.20
 }
 
 exp_subset = nfo_df[nfo_df["expiry_dt"] == chosen_exp_date]
@@ -270,7 +302,7 @@ for spec in leg_specs:
     tok = spec["token"]
     ltp_val = live_ltp_map.get(tok, 0.0)
     if ltp_val <= 0.5:
-        base = verified_baseline_chain.get((spec["strike"], spec["type"]), 140.0)
+        base = verified_baseline_chain.get((spec["strike"], spec["type"]), 130.0)
         mult = 1.0 if dte_days <= 7 else (1.28 if dte_days <= 14 else 1.5)
         ltp_val = round(base * mult, 2)
 
@@ -282,7 +314,7 @@ for spec in leg_specs:
     })
 
 # --- 7. PAYOFF & RISK COMPUTATION ---
-spot_range = np.linspace(live_spot - 700, live_spot + 700, 250)
+spot_range = np.linspace(live_spot - 750, live_spot + 750, 250)
 pnl = np.zeros_like(spot_range)
 net_credit = 0.0
 
@@ -303,33 +335,51 @@ T_years = dte_days / 365.0
 sigma = max(live_vix / 100.0, 0.10)
 stdev = live_spot * sigma * np.sqrt(T_years)
 pop_percent = (norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100
+rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
-# --- ROW 2: ALL 7 KEY METRICS IN ONE UNIFIED BAR ---
-m1, m2, m3, m4, m5, m6, m7 = st.columns([1.1, 0.8, 0.9, 1.1, 1.1, 0.9, 1.4])
-with m1:
-    st.metric("NIFTY SPOT", f"₹{live_spot:,.1f}", delta=f"ATM {atm_strike}")
-with m2:
-    st.metric("INDIA VIX", f"{live_vix:.2f}%")
-with m3:
-    st.metric("WIN PROB", f"{pop_percent:.1f}%", delta=f"{lower_be:.0f}-{upper_be:.0f}")
-with m4:
-    st.metric("MAX PROFIT", f"₹{max_profit_lot:,.0f}", delta=f"+{net_credit:.1f} pts")
-with m5:
-    st.metric("MAX RISK", f"₹{max_loss_lot:,.0f}")
-with m6:
-    rr_ratio = max_loss_lot / max(max_profit_lot, 1)
-    st.metric("RISK : REWARD", f"1 : {1/rr_ratio:.2f}")
-with m7:
-    st.metric("ENTRY TIMING SIGNAL", entry_signal, delta=entry_advice)
+# --- ROW 2: ZERO-TRUNCATION HTML FLEX METRIC CARDS ---
+st.markdown(f"""
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-label">Nifty 50 Spot</div>
+        <div class="kpi-val">₹{live_spot:,.1f}</div>
+        <div class="kpi-sub">ATM Strike: {atm_strike}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">India VIX</div>
+        <div class="kpi-val">{live_vix:.2f}%</div>
+        <div class="kpi-sub">{market_regime}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Win Probability</div>
+        <div class="kpi-val">{pop_percent:.1f}%</div>
+        <div class="kpi-sub">BE: {lower_be:.0f} – {upper_be:.0f}</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Max Profit / Lot</div>
+        <div class="kpi-val" style="color:#10b981;">₹{max_profit_lot:,.0f}</div>
+        <div class="kpi-sub">Credit: +{net_credit:.1f} pts</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-label">Max Risk / Lot</div>
+        <div class="kpi-val" style="color:#ef4444;">₹{max_loss_lot:,.0f}</div>
+        <div class="kpi-sub" style="color:#94a3b8;">R:R = 1 : {1/rr_ratio:.2f}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-# --- ROW 3: COMPACT STRATEGY BANNER ---
-st.markdown(
-    f"<div class='regime-bar'>🤖 <b>AI Active Strategy: {strat_name} ({display_exp})</b> &nbsp;|&nbsp; "
-    f"<span style='color:#38bdf8'>{market_regime}:</span> {strat_reason}</div>",
-    unsafe_allow_html=True
-)
+# --- ROW 3: UNIFIED STRATEGY + ENTRY CLOCK BANNER (NO '...' CUTOFF) ---
+st.markdown(f"""
+<div class="signal-banner">
+    <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; margin-bottom:3px;">
+        <div>🤖 <b>AI Active Strategy: <span style="color:#38bdf8;">{strat_name} ({display_exp})</span></b></div>
+        <div>⏰ <b>Entry Clock: <span style="color:{sig_color};">{entry_signal}</span></b> — <span style="color:#cbd5e1;">{entry_advice}</span></div>
+    </div>
+    <div style="color:#94a3b8; font-size:0.78rem;">💡 {strat_reason}</div>
+</div>
+""", unsafe_allow_html=True)
 
-# --- ROW 4: SIDE-BY-SIDE ORDERS & PAYOFF (FITS SINGLE FRAME) ---
+# --- ROW 4: SIDE-BY-SIDE ORDERS & PAYOFF ---
 col_left, col_right = st.columns([1.15, 1.25])
 
 with col_left:
@@ -338,7 +388,7 @@ with col_left:
         badge_text = "🟢 BUY" if leg["action"] == "BUY" else "🔴 SELL"
         st.markdown(
             f"<div class='leg-box' style='border-left-color:{badge_color}'>"
-            f"<div><b>Leg {idx}:</b> {badge_text} <code>{leg['readable']}</code> <span style='color:#94a3b8;font-size:0.75rem'>({leg['note']})</span></div>"
+            f"<div><b>Leg {idx}:</b> {badge_text} <code>{leg['readable']}</code> <span style='color:#94a3b8;font-size:0.74rem'>({leg['note']})</span></div>"
             f"<div style='font-weight:700;color:#f8fafc'>₹{leg['premium']:.2f}</div>"
             f"</div>",
             unsafe_allow_html=True
@@ -354,7 +404,7 @@ with col_left:
     ]
     with st.expander("📋 Zerodha Basket JSON (1-Click Copy — BUY First Sorted)", expanded=False):
         st.code(json.dumps(kite_basket, indent=2), language="json")
-    st.caption(f"🔒 Margin Safe: JSON auto-orders BUY legs first | Synced: {ist_time_str}")
+    st.caption(f"🔒 Margin Safe: JSON auto-orders BUY legs first | Last Sync: {ist_time_str}")
 
 with col_right:
     fig, ax = plt.subplots(figsize=(6.8, 2.75), facecolor="#0b0f19")
@@ -380,4 +430,4 @@ with col_right:
 
     st.pyplot(fig)
     plt.close(fig)
-    
+        
