@@ -122,10 +122,9 @@ def load_angel_nfo_master():
 
 nfo_df = load_angel_nfo_master()
 
-# --- 2. LIVE INDICES (NIFTY, BANKNIFTY, SENSEX, VIX) ---
+# --- 2. LIVE INDICES (FIXED NIFTY, BANKNIFTY, SENSEX, VIX) ---
 @st.cache_data(ttl=10)
 def get_live_indices():
-    # Fallback default values
     data_out = {
         "nifty": 25124.80,
         "banknifty": 51800.50,
@@ -133,16 +132,22 @@ def get_live_indices():
         "vix": 16.70
     }
     try:
-        # Token IDs: Nifty 50 (99926000), BankNifty (99926001), Sensex (99919000), India VIX (99926009)
-        res = smart_api.getMarketData("LTP", {"NSE": ["99926000", "99926001", "99919000", "99926009"]})
-        if res and res.get("status") and "data" in res:
-            for item in res["data"].get("fetched", []):
+        # Fetching NSE Indices and BSE Sensex via correct segment mapping
+        res_nse = smart_api.getMarketData("LTP", {"NSE": ["99926000", "99926001", "99926009"]})
+        if res_nse and res_nse.get("status") and "data" in res_nse:
+            for item in res_nse["data"].get("fetched", []):
                 tok = item["symbolToken"]
                 ltp = float(item["ltp"])
                 if tok == "99926000": data_out["nifty"] = ltp
                 elif tok == "99926001": data_out["banknifty"] = ltp
-                elif tok == "99919000": data_out["sensex"] = ltp
                 elif tok == "99926009" and 8.0 <= ltp <= 60.0: data_out["vix"] = ltp
+
+        # Fetching Sensex from BSE segment
+        res_bse = smart_api.getMarketData("LTP", {"BSE": ["99919000"]})
+        if res_bse and res_bse.get("status") and "data" in res_bse:
+            for item in res_bse["data"].get("fetched", []):
+                if item["symbolToken"] == "99919000":
+                    data_out["sensex"] = float(item["ltp"])
     except Exception:
         pass
     return data_out
