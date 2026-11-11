@@ -123,7 +123,7 @@ chosen_exp_date = top_expiries[selected_idx]
 dte_days = max((chosen_exp_date - today_date).days, 1)
 display_exp = chosen_exp_date.strftime("%d-%b")
 
-# --- 4. MULTI-STRATEGY SELECTOR ---
+# --- 4. MULTI-STRATEGY SELECTOR (FULLY REACTIVE STATE) ---
 st.markdown("#### 🧠 Select Preferred Strategy:")
 strategy_choice = st.radio(
     "Strategy Selector",
@@ -132,33 +132,39 @@ strategy_choice = st.radio(
         "⚡ Strategy 2: Hedged Short Strangle (Aggressive Theta Capture)"
     ],
     horizontal=True,
-    label_visibility="collapsed"
+    label_visibility="collapsed",
+    key="strat_selector_key"
 )
 
-# --- STRIKE CALCULATIONS ---
+# Explicitly isolate strike logic per strategy
 if "Iron Condor" in strategy_choice:
+    strat_code = "IC"
+    strat_name = "Short Iron Condor"
     sell_pe = atm_strike - 150
     sell_ce = atm_strike + 150
     buy_pe  = sell_pe - 200
     buy_ce  = sell_ce + 200
     wing_width = 200
-    strat_name = "Short Iron Condor"
-else: 
+    strat_badge = "🛡️ Low Risk / Defined Range"
+else:
+    strat_code = "STRANGLE"
+    strat_name = "Hedged Short Strangle"
     sell_pe = atm_strike - 100
     sell_ce = atm_strike + 100
     buy_pe  = sell_pe - 250
     buy_ce  = sell_ce + 250
     wing_width = 250
-    strat_name = "Hedged Short Strangle"
+    strat_badge = "⚡ High Theta / Tighter Range"
 
 # --- 5. BATCH LIVE LTP FETCHER ---
 verified_baseline_chain = {
-    (24550, "PE"): 85.00,  (24650, "PE"): 105.50, (24750, "PE"): 135.40,
-    (24850, "PE"): 172.00, (24900, "PE"): 193.15, (24950, "PE"): 216.35,
-    (25000, "PE"): 239.65, (25050, "PE"): 265.55, (25050, "CE"): 232.70,
-    (25100, "CE"): 210.15, (25150, "CE"): 189.65, (25200, "CE"): 169.85,
-    (25250, "CE"): 152.65, (25350, "CE"): 118.50, (25450, "CE"): 90.20,
-    (25550, "CE"): 68.00
+    (24500, "PE"): 78.00,  (24550, "PE"): 85.00,  (24650, "PE"): 105.50, 
+    (24700, "PE"): 120.00, (24750, "PE"): 135.40, (24850, "PE"): 172.00, 
+    (24900, "PE"): 193.15, (24950, "PE"): 216.35, (25000, "PE"): 239.65, 
+    (25050, "PE"): 265.55, (25050, "CE"): 232.70, (25100, "CE"): 210.15, 
+    (25150, "CE"): 189.65, (25200, "CE"): 169.85, (25250, "CE"): 152.65, 
+    (25350, "CE"): 118.50, (25400, "CE"): 104.00, (25450, "CE"): 90.20,
+    (25500, "CE"): 78.00,  (25550, "CE"): 68.00
 }
 
 exp_subset = nfo_df[nfo_df["expiry_dt"] == chosen_exp_date]
@@ -211,7 +217,7 @@ for spec in leg_specs:
     tok = spec["token"]
     ltp_val = live_ltp_map.get(tok, 0.0)
     if ltp_val <= 0.5:
-        base = verified_baseline_chain.get((spec["strike"], spec["type"]), 120.0)
+        base = verified_baseline_chain.get((spec["strike"], spec["type"]), 125.0)
         multiplier = 1.0 if dte_days <= 7 else 1.3
         ltp_val = round(base * multiplier, 2)
 
@@ -243,7 +249,7 @@ sigma = max(live_vix / 100.0, 0.10)
 stdev = live_spot * sigma * np.sqrt(T_years)
 pop_percent = (norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100
 
-st.subheader(f"📊 {strat_name} — {selected_label}")
+st.subheader(f"📊 {strat_name} — {selected_label} | {strat_badge}")
 
 m1, m2, m3, m4, m5 = st.columns(5)
 with m1:
@@ -280,12 +286,13 @@ with col_left:
         }
         for leg in json_legs
     ]
-    with st.expander("📋 Zerodha Basket JSON (Click to Copy)", expanded=False):
+    with st.expander(f"📋 Zerodha Basket JSON ({strat_name})", expanded=False):
         st.code(json.dumps(kite_basket, indent=2), language="json")
 
 with col_right:
-    st.subheader(f"📈 Real Payoff Curve ({display_exp})")
-    spot_range = np.linspace(live_spot - 700, live_spot + 700, 150)
+    st.subheader(f"📈 Real Payoff Curve ({strat_name})")
+    span = wing_width + 500
+    spot_range = np.linspace(live_spot - span, live_spot + span, 180)
     pnl = np.zeros_like(spot_range)
 
     for leg in display_legs:
@@ -296,7 +303,7 @@ with col_right:
 
     fig, ax = plt.subplots(figsize=(7, 4.5), facecolor="#0b0f19")
     ax.set_facecolor("#111827")
-    ax.plot(spot_range, pnl, color="#38bdf8", linewidth=2.5, label="Net Payoff")
+    ax.plot(spot_range, pnl, color="#38bdf8", linewidth=2.5, label='Net Payoff')
     ax.axhline(0, color="#64748b", linestyle="--", linewidth=1)
     ax.axvline(live_spot, color="#f59e0b", linestyle=":", label=f"Spot ({live_spot:.1f})")
     ax.axvline(lower_be, color="#94a3b8", linestyle="--", alpha=0.7)
@@ -318,5 +325,4 @@ with col_right:
     plt.close(fig)
 
 st.write("---")
-st.caption(f"Multi-Strategy Switching Engine Active | Win Prob: {pop_percent:.1f}% | Last Sync: {time.strftime('%H:%M:%S IST')}")
-    
+st.caption(f"Strategy: {strat_name} | Win Prob: {pop_percent:.1f}% | Last Sync: {time.strftime('%H:%M:%S IST')}")
