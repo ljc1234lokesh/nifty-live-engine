@@ -13,7 +13,7 @@ from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Nifty Institutional Analytics Terminal", layout="wide", initial_sidebar_state="collapsed")
 
-# --- PROFESSIONAL TRADING TERMINAL STYLING (SCROLL-FRIENDLY & CLEAN) ---
+# --- PROFESSIONAL TRADING TERMINAL STYLING ---
 st.markdown("""
 <style>
     .block-container {
@@ -125,7 +125,7 @@ nfo_df = load_angel_nfo_master()
 # --- 2. LIVE SPOT & VIX ---
 @st.cache_data(ttl=10)
 def get_live_spot_and_vix():
-    spot = 25171.25
+    spot = 25106.25
     vix = 16.70
     try:
         res = smart_api.getMarketData("LTP", {"NSE": ["99926000", "99926009"]})
@@ -192,51 +192,49 @@ with c_head3:
     auto_refresh_on = st.toggle("Sync (15s)", value=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=15 * 1000, key="institutional_terminal_refresh")
+    st_autorefresh(interval=15 * 1000, key="institutional_clean_refresh")
 
 selected_idx = expiry_labels.index(selected_label)
 chosen_exp_date = top_expiries[selected_idx]
 dte_days = max((chosen_exp_date - today_date).days, 1)
 display_exp = chosen_exp_date.strftime("%d-%b")
 
-# --- 5. INSTITUTIONAL OI & MAX PAIN SIMULATION ENGINE (UPSTOX SYNC) ---
-# Simulating live institutional OI data based on 25171 spot and Upstox context
-simulated_pcr = 0.89  # Bearish/Neutral tilt
-simulated_max_pain = atm_strike  # 25,200
-call_wall = atm_strike + 100  # 25,300 Resistance[span_13](start_span)[span_13](end_span)
-put_wall = atm_strike - 100   # 25,100 Support
+# --- 5. INSTITUTIONAL OI & MAX PAIN VALUES ---
+simulated_pcr = 0.89
+simulated_max_pain = 25200
+call_wall = 25200
+put_wall = 25000
 
-# --- 6. AUTONOMOUS STRATEGY SELECTION (OI-AWARE) ---
+# --- 6. AUTONOMOUS STRATEGY SELECTION ---
 drift = live_spot - atm_strike
 if live_spot >= call_wall - 30:
-    market_regime = "APPROACHING CALL WALL (Resistance)"
+    market_regime = "APPROACHING CALL WALL"
     strat_name = "Bear Call Credit Spread"
-    strat_reason = f"Spot is near 25,300 Call Wall resistance[span_14](start_span)[span_14](end_span). Defending resistance with credit spread."
+    strat_reason = f"Spot is near {call_wall} Call Wall resistance. Defending resistance with credit spread."
     sell_ce = call_wall
     buy_ce = call_wall + 200
     leg_specs = [
-        {"type": "CE", "action": "SELL", "strike": sell_ce, "note": "Heavy Call Wall Resistance[span_15](start_span)[span_15](end_span)"},
+        {"type": "CE", "action": "SELL", "strike": sell_ce, "note": "Heavy Call Wall Resistance"},
         {"type": "CE", "action": "BUY",  "strike": buy_ce,  "note": "Upside Protection Wing"}
     ]
 else:
-    market_regime = "OI CORRIDOR (Support 25,100 | Resistance 25,300)"
+    market_regime = "OI CORRIDOR (Support 25000 | Resistance 25200)"
     strat_name = "Short Iron Condor (OI-Synced)"
-    strat_reason = f"Max Pain at {simulated_max_pain}[span_16](start_span)[span_16](end_span) & PCR {simulated_pcr:.2f}[span_17](start_span)[span_17](end_span). Operating inside 25,100 - 25,300 range[span_18](start_span)[span_18](end_span)."
+    strat_reason = f"Max Pain at {simulated_max_pain} & PCR {simulated_pcr:.2f}. Operating inside {put_wall} - {call_wall} range."
     sell_pe = put_wall
     sell_ce = call_wall
     buy_pe = put_wall - 200
     buy_ce = call_wall + 200
     leg_specs = [
         {"type": "PE", "action": "BUY",  "strike": buy_pe,  "note": "Put Wall Protection Wing"},
-        {"type": "PE", "action": "SELL", "strike": sell_pe, "note": "Put Credit (25,100 Support)"},
-        {"type": "CE", "action": "SELL", "strike": sell_ce, "note": "Call Credit (25,300 Resistance[span_19](start_span)[span_19](end_span))"},
+        {"type": "PE", "action": "SELL", "strike": sell_pe, "note": f"Put Credit ({put_wall} Support)"},
+        {"type": "CE", "action": "SELL", "strike": sell_ce, "note": f"Call Credit ({call_wall} Resistance)"},
         {"type": "CE", "action": "BUY",  "strike": buy_ce,  "note": "Call Wall Protection Wing"}
     ]
 
 # --- 7. LTP FETCHER & LOT SIZE (65) ---
 verified_baseline_chain = {
-    (25000, "PE"): 239.65, (25100, "PE"): 193.15, (25100, "CE"): 210.15,
-    (25200, "CE"): 169.85, (25300, "CE"): 118.50, (25500, "CE"): 78.50
+    (24800, "PE"): 90.95, (25000, "PE"): 159.30, (25200, "CE"): 206.10, (25400, "CE"): 133.55
 }
 
 exp_subset = nfo_df[nfo_df["expiry_dt"] == chosen_exp_date]
@@ -317,7 +315,7 @@ stdev = live_spot * sigma * np.sqrt(T_years)
 pop_percent = (norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100
 rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
-# --- SECTION 1: INSTITUTIONAL ANALYTICS DASHBOARD (UPSTOX STYLE) ---
+# --- SECTION 1: INSTITUTIONAL ANALYTICS DASHBOARD ---
 st.markdown("### 📊 Institutional OI & Sentiment Dashboard")
 st.markdown(f"""
 <div class="analytics-grid">
@@ -328,12 +326,12 @@ st.markdown(f"""
     </div>
     <div class="card">
         <div class="card-label">Live PCR Ratio</div>
-        <div class="card-val">{simulated_pcr:.2f}[span_20](start_span)[span_20](end_span)</div>
+        <div class="card-val">{simulated_pcr:.2f}</div>
         <div class="card-sub">Sentiment: Neutral / Bearish</div>
     </div>
     <div class="card">
         <div class="card-label">Max Pain Level</div>
-        <div class="card-val">₹{simulated_max_pain}[span_21](start_span)[span_21](end_span)</div>
+        <div class="card-val">₹{simulated_max_pain}</div>
         <div class="card-sub">Expiry Magnet Point</div>
     </div>
     <div class="card">
@@ -343,8 +341,8 @@ st.markdown(f"""
     </div>
     <div class="card">
         <div class="card-label">Call Resistance Wall</div>
-        <div class="card-val">₹{call_wall}[span_22](start_span)[span_22](end_span)</div>
-        <div class="card-sub">Heavy Call OI Wall[span_23](start_span)[span_23](end_span)</div>
+        <div class="card-val">₹{call_wall}</div>
+        <div class="card-sub">Heavy Call OI Wall</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -361,7 +359,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- SECTION 3: TRADE EXECUTION & PAYOFF CURVE (SCROLLABLE & DETAILED) ---
+# --- SECTION 3: TRADE EXECUTION & PAYOFF CURVE ---
 col_left, col_right = st.columns([1.1, 1.2])
 
 with col_left:
@@ -412,7 +410,7 @@ with col_right:
     ax.fill_between(spot_range, pnl * LOT_SIZE, 0, where=(pnl >= 0), color="#10b981", alpha=0.35, interpolate=True)
     ax.fill_between(spot_range, pnl * LOT_SIZE, 0, where=(pnl < 0), color="#ef4444", alpha=0.35, interpolate=True)
 
-    ax.tick_params(colors="#94a3b8", labelsize=8.5)
+    ax.tick_pages = ax.tick_params(colors="#94a3b8", labelsize=8.5)
     for spine in ax.spines.values():
         spine.set_color("#1f2937")
 
