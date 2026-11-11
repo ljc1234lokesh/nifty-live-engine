@@ -11,17 +11,18 @@ import requests
 import pandas as pd
 from streamlit_autorefresh import st_autorefresh
 
-st.set_page_config(page_title="Nifty Multi-Strategy Terminal", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Nifty Autonomous Quant Engine", layout="wide", initial_sidebar_state="collapsed")
 
 # --- PRO DARK STYLING ---
 st.markdown("""
 <style>
     .reportview-container { background: #0b0f19; }
     .metric-card { background-color: #111827; border-radius: 8px; padding: 14px; border: 1px solid #1f2937; }
+    .stRadio [role="radiogroup"] { gap: 16px; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("⚡ Nifty Multi-Strategy Institutional Engine")
+st.title("⚡ Nifty Autonomous Options Engine (AI Auto-Pilot)")
 
 # --- CREDENTIALS ---
 try:
@@ -65,7 +66,7 @@ def load_angel_nfo_master():
     df["expiry_dt"] = pd.to_datetime(df["expiry"], format="%d%b%Y", errors="coerce").dt.date
     return df[["token", "symbol", "expiry", "expiry_dt", "strike_int", "opt_type"]]
 
-with st.spinner("🔄 Syncing NFO Scrip Master..."):
+with st.spinner("🔄 Syncing Official NSE/NFO Scrip Master..."):
     nfo_df = load_angel_nfo_master()
 
 # --- 2. LIVE SPOT & VIX ---
@@ -111,7 +112,7 @@ with c4:
     auto_refresh_on = st.toggle("Auto-refresh (15s)", value=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=15 * 1000, key="multi_strategy_refresh")
+    st_autorefresh(interval=15 * 1000, key="auto_pilot_refresh")
 
 st.write("---")
 
@@ -123,48 +124,72 @@ chosen_exp_date = top_expiries[selected_idx]
 dte_days = max((chosen_exp_date - today_date).days, 1)
 display_exp = chosen_exp_date.strftime("%d-%b")
 
-# --- 4. MULTI-STRATEGY SELECTOR (FULLY REACTIVE STATE) ---
-st.markdown("#### 🧠 Select Preferred Strategy:")
-strategy_choice = st.radio(
-    "Strategy Selector",
-    [
-        "🛡️ Strategy 1: Short Iron Condor (Double Hedged Safe Range)", 
-        "⚡ Strategy 2: Hedged Short Strangle (Aggressive Theta Capture)"
-    ],
-    horizontal=True,
-    label_visibility="collapsed",
-    key="strat_selector_key"
-)
+# --- 4. AUTONOMOUS STRATEGY SELECTION ENGINE (SINGLE BEST STRATEGY) ---
+drift = live_spot - atm_strike
 
-# Explicitly isolate strike logic per strategy
-if "Iron Condor" in strategy_choice:
-    strat_code = "IC"
-    strat_name = "Short Iron Condor"
-    sell_pe = atm_strike - 150
-    sell_ce = atm_strike + 150
+if drift >= 22.0:
+    market_regime = "BULLISH MOMENTUM"
+    strat_name = "Bull Put Credit Spread (Directional)"
+    strat_reason = f"Spot (₹{live_spot:.1f}) is breaking out above ATM ({atm_strike}). Selling Put Spread captures upside + theta with capped risk."
+    sell_pe = atm_strike
     buy_pe  = sell_pe - 200
+    wing_width = 200
+    leg_specs = [
+        {"type": "PE", "action": "BUY",  "strike": buy_pe,  "note": "Downside Protection Wing"},
+        {"type": "PE", "action": "SELL", "strike": sell_pe, "note": "ATM Bullish Put Credit Leg"}
+    ]
+
+elif drift <= -22.0:
+    market_regime = "BEARISH MOMENTUM"
+    strat_name = "Bear Call Credit Spread (Directional)"
+    strat_reason = f"Spot (₹{live_spot:.1f}) is rejecting below ATM ({atm_strike}). Selling Call Spread captures downside + theta with capped risk."
+    sell_ce = atm_strike
     buy_ce  = sell_ce + 200
     wing_width = 200
-    strat_badge = "🛡️ Low Risk / Defined Range"
+    leg_specs = [
+        {"type": "CE", "action": "SELL", "strike": sell_ce, "note": "ATM Bearish Call Credit Leg"},
+        {"type": "CE", "action": "BUY",  "strike": buy_ce,  "note": "Upside Protection Wing"}
+    ]
+
 else:
-    strat_code = "STRANGLE"
-    strat_name = "Hedged Short Strangle"
-    sell_pe = atm_strike - 100
-    sell_ce = atm_strike + 100
-    buy_pe  = sell_pe - 250
-    buy_ce  = sell_ce + 250
-    wing_width = 250
-    strat_badge = "⚡ High Theta / Tighter Range"
+    if live_vix >= 14.5:
+        market_regime = "RANGE-BOUND + ELEVATED VIX"
+        strat_name = "Short Iron Condor (4-Leg Hedged)"
+        strat_reason = f"Market is neutral near {atm_strike} & VIX is elevated ({live_vix:.2f}%). Iron Condor gives maximum theta edge with 100% defined risk."
+        half_w = 100 if dte_days <= 7 else 200
+        wing_width = 200
+        sell_pe = atm_strike - half_w
+        sell_ce = atm_strike + half_w
+        buy_pe  = sell_pe - wing_width
+        buy_ce  = sell_ce + wing_width
+        leg_specs = [
+            {"type": "PE", "action": "BUY",  "strike": buy_pe,  "note": "Downside Crash Shield"},
+            {"type": "PE", "action": "SELL", "strike": sell_pe, "note": "Put Credit Leg (Core Theta)"},
+            {"type": "CE", "action": "SELL", "strike": sell_ce, "note": "Call Credit Leg (Core Theta)"},
+            {"type": "CE", "action": "BUY",  "strike": buy_ce,  "note": "Upside Rally Shield"}
+        ]
+    else:
+        market_regime = "TIGHT RANGE + LOW VIX"
+        strat_name = "Iron Butterfly (High-Yield Neutral)"
+        strat_reason = f"VIX is low ({live_vix:.2f}%) and Spot is pinned at {atm_strike}. Iron Fly collects maximum ATM premium with tight wings."
+        wing_width = 200
+        sell_pe = atm_strike
+        sell_ce = atm_strike
+        buy_pe  = atm_strike - wing_width
+        buy_ce  = atm_strike + wing_width
+        leg_specs = [
+            {"type": "PE", "action": "BUY",  "strike": buy_pe,  "note": "Downside Protection Wing"},
+            {"type": "PE", "action": "SELL", "strike": sell_pe, "note": "ATM Put Sell"},
+            {"type": "CE", "action": "SELL", "strike": sell_ce, "note": "ATM Call Sell"},
+            {"type": "CE", "action": "BUY",  "strike": buy_ce,  "note": "Upside Protection Wing"}
+        ]
 
 # --- 5. BATCH LIVE LTP FETCHER ---
 verified_baseline_chain = {
-    (24500, "PE"): 78.00,  (24550, "PE"): 85.00,  (24650, "PE"): 105.50, 
-    (24700, "PE"): 120.00, (24750, "PE"): 135.40, (24850, "PE"): 172.00, 
-    (24900, "PE"): 193.15, (24950, "PE"): 216.35, (25000, "PE"): 239.65, 
-    (25050, "PE"): 265.55, (25050, "CE"): 232.70, (25100, "CE"): 210.15, 
-    (25150, "CE"): 189.65, (25200, "CE"): 169.85, (25250, "CE"): 152.65, 
-    (25350, "CE"): 118.50, (25400, "CE"): 104.00, (25450, "CE"): 90.20,
-    (25500, "CE"): 78.00,  (25550, "CE"): 68.00
+    (24650, "PE"): 105.50, (24750, "PE"): 135.40, (24850, "PE"): 172.00,
+    (24950, "PE"): 216.35, (25050, "PE"): 265.55, (25050, "CE"): 232.70,
+    (25150, "CE"): 189.65, (25250, "CE"): 152.65, (25350, "CE"): 118.50,
+    (25450, "CE"): 90.20
 }
 
 exp_subset = nfo_df[nfo_df["expiry_dt"] == chosen_exp_date]
@@ -175,12 +200,17 @@ def get_contract_info(strike_val, opt_type_val):
         return str(row.iloc[0]["token"]), str(row.iloc[0]["symbol"])
     return None, None
 
-leg_specs = [
-    {"type": "PE", "action": "BUY",  "strike": buy_pe,  "note": "Downside Hedge Wing"},
-    {"type": "PE", "action": "SELL", "strike": sell_pe, "note": "Put Credit Leg"},
-    {"type": "CE", "action": "SELL", "strike": sell_ce, "note": "Call Credit Leg"},
-    {"type": "CE", "action": "BUY",  "strike": buy_ce,  "note": "Upside Hedge Wing"}
-]
+def get_kite_symbol(exp_date, strike, opt_type, all_exp_dates):
+    yy = exp_date.strftime("%y")
+    same_month_exps = [d for d in all_exp_dates if d.year == exp_date.year and d.month == exp_date.month]
+    is_monthly = (exp_date == max(same_month_exps))
+    if is_monthly:
+        return f"NIFTY{yy}{exp_date.strftime('%b').upper()}{strike}{opt_type}"
+    else:
+        month_codes = {1: '1', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: 'O', 11: 'N', 12: 'D'}
+        m_code = month_codes.get(exp_date.month, 'N')
+        dd = exp_date.strftime("%d")
+        return f"NIFTY{yy}{m_code}{dd}{strike}{opt_type}"
 
 tokens_to_fetch = []
 for spec in leg_specs:
@@ -200,25 +230,13 @@ if tokens_to_fetch:
     except Exception:
         pass
 
-def get_kite_symbol(exp_date, strike, opt_type, all_exp_dates):
-    yy = exp_date.strftime("%y")
-    same_month_exps = [d for d in all_exp_dates if d.year == exp_date.year and d.month == exp_date.month]
-    is_monthly = (exp_date == max(same_month_exps))
-    if is_monthly:
-        return f"NIFTY{yy}{exp_date.strftime('%b').upper()}{strike}{opt_type}"
-    else:
-        month_codes = {1: '1', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: 'O', 11: 'N', 12: 'D'}
-        m_code = month_codes.get(exp_date.month, 'N')
-        dd = exp_date.strftime("%d")
-        return f"NIFTY{yy}{m_code}{dd}{strike}{opt_type}"
-
 display_legs = []
 for spec in leg_specs:
     tok = spec["token"]
     ltp_val = live_ltp_map.get(tok, 0.0)
     if ltp_val <= 0.5:
-        base = verified_baseline_chain.get((spec["strike"], spec["type"]), 125.0)
-        multiplier = 1.0 if dte_days <= 7 else 1.3
+        base = verified_baseline_chain.get((spec["strike"], spec["type"]), 140.0)
+        multiplier = 1.0 if dte_days <= 7 else (1.28 if dte_days <= 14 else 1.5)
         ltp_val = round(base * multiplier, 2)
 
     display_legs.append({
@@ -232,36 +250,50 @@ for spec in leg_specs:
         "note": spec["note"]
     })
 
-# --- 6. RISK METRICS ---
-p_buy_pe  = display_legs[0]["premium"]
-p_sell_pe = display_legs[1]["premium"]
-p_sell_ce = display_legs[2]["premium"]
-p_buy_ce  = display_legs[3]["premium"]
+# --- 6. EXACT PAYOFF & RISK COMPUTATION ---
+spot_range = np.linspace(live_spot - 750, live_spot + 750, 300)
+pnl = np.zeros_like(spot_range)
 
-net_credit = (p_sell_pe + p_sell_ce) - (p_buy_pe + p_buy_ce)
-max_profit_lot = net_credit * 25
-max_loss_lot = (wing_width - net_credit) * 25
-lower_be = sell_pe - net_credit
-upper_be = sell_ce + net_credit
+net_credit = 0.0
+for leg in display_legs:
+    k = leg["strike"]
+    prem = leg["premium"]
+    net_credit += prem if leg["action"] == "SELL" else -prem
+    intrinsic = np.maximum(0, spot_range - k) if leg["type"] == "CE" else np.maximum(0, k - spot_range)
+    pnl += (intrinsic - prem) if leg["action"] == "BUY" else (prem - intrinsic)
+
+max_profit_lot = np.max(pnl) * 25
+max_loss_lot = abs(np.min(pnl)) * 25
+
+# Exact Breakevens from Payoff Curve
+profitable_spots = spot_range[pnl >= 0]
+if len(profitable_spots) > 0:
+    lower_be = profitable_spots[0]
+    upper_be = profitable_spots[-1]
+else:
+    lower_be = live_spot - 200
+    upper_be = live_spot + 200
 
 T_years = dte_days / 365.0
 sigma = max(live_vix / 100.0, 0.10)
 stdev = live_spot * sigma * np.sqrt(T_years)
 pop_percent = (norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100
 
-st.subheader(f"📊 {strat_name} — {selected_label} | {strat_badge}")
+# --- DISPLAY AI DECISION BANNER ---
+st.subheader(f"🤖 Auto-Selected Strategy: {strat_name}")
+st.info(f"**Regime Detected: `{market_regime}`** — {strat_reason}")
 
 m1, m2, m3, m4, m5 = st.columns(5)
 with m1:
     st.metric("Net Credit", f"₹{net_credit:.2f}", delta=f"₹{max_profit_lot:,.0f} / Lot")
 with m2:
-    st.metric("Max Profit", f"₹{max_profit_lot:,.0f}")
+    st.metric("Max Profit / Lot", f"₹{max_profit_lot:,.0f}")
 with m3:
-    st.metric("Max Risk", f"₹{max_loss_lot:,.0f}")
+    st.metric("Max Risk / Lot", f"₹{max_loss_lot:,.0f}")
 with m4:
-    st.metric("Lower BE", f"{lower_be:.0f}")
+    st.metric("Win Probability", f"{pop_percent:.1f}%")
 with m5:
-    st.metric("Upper BE", f"{upper_be:.0f}")
+    st.metric("Safe Zone", f"{lower_be:.0f} - {upper_be:.0f}")
 
 # --- ORDERS & PAYOFF ---
 col_left, col_right = st.columns([1.1, 1.2])
@@ -273,6 +305,7 @@ with col_left:
         st.markdown(f"**Leg {idx}:** {badge} **`{leg['readable']}`** — **LTP: ₹{leg['premium']:.2f}**")
         st.caption(f"└ {leg['note']}")
 
+    # Strictly sort BUY legs first in JSON for Zerodha Margin Benefit
     json_legs = sorted(display_legs, key=lambda x: 0 if x["action"] == "BUY" else 1)
     kite_basket = [
         {
@@ -286,24 +319,16 @@ with col_left:
         }
         for leg in json_legs
     ]
-    with st.expander(f"📋 Zerodha Basket JSON ({strat_name})", expanded=False):
+    with st.expander("📋 Zerodha Basket JSON (Click to Copy)", expanded=False):
         st.code(json.dumps(kite_basket, indent=2), language="json")
 
+    st.caption("🔒 **Margin Rule:** Screen par standard view hai, aur JSON ke andar BUY orders pehle rakhe gaye hain margin benefit ke liye.")
+
 with col_right:
-    st.subheader(f"📈 Real Payoff Curve ({strat_name})")
-    span = wing_width + 500
-    spot_range = np.linspace(live_spot - span, live_spot + span, 180)
-    pnl = np.zeros_like(spot_range)
-
-    for leg in display_legs:
-        k = leg["strike"]
-        prem = leg["premium"]
-        intrinsic = np.maximum(0, spot_range - k) if leg["type"] == "CE" else np.maximum(0, k - spot_range)
-        pnl += (intrinsic - prem) if leg["action"] == "BUY" else (prem - intrinsic)
-
+    st.subheader(f"📈 Real Payoff Curve ({display_exp})")
     fig, ax = plt.subplots(figsize=(7, 4.5), facecolor="#0b0f19")
     ax.set_facecolor("#111827")
-    ax.plot(spot_range, pnl, color="#38bdf8", linewidth=2.5, label='Net Payoff')
+    ax.plot(spot_range, pnl, color="#38bdf8", linewidth=2.5, label="Net Payoff")
     ax.axhline(0, color="#64748b", linestyle="--", linewidth=1)
     ax.axvline(live_spot, color="#f59e0b", linestyle=":", label=f"Spot ({live_spot:.1f})")
     ax.axvline(lower_be, color="#94a3b8", linestyle="--", alpha=0.7)
@@ -325,4 +350,5 @@ with col_right:
     plt.close(fig)
 
 st.write("---")
-st.caption(f"Strategy: {strat_name} | Win Prob: {pop_percent:.1f}% | Last Sync: {time.strftime('%H:%M:%S IST')}")
+st.caption(f"Autonomous Quant Engine | Active Regime: {market_regime} | Last Sync: {time.strftime('%H:%M:%S IST')}")
+    
