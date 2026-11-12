@@ -304,11 +304,11 @@ if nav_mode == "🛡️ Saved Live Tracker":
             </div>
             """, unsafe_allow_html=True)
             
-            # Live Decision Engine for this Saved Strategy
+                        # Live Decision Engine for this Saved Strategy
             price_drift = live_spot - strat['entry_spot']
             
             if abs(price_drift) < 60:
-                st.markdown("🟢 **STATUS: TIKE RAHO (HOLD)** — Market abhi aapke entry zone ke paas safe corridor mein hai. Theta decay chal raha hai[span_0](start_span)[span_0](end_span).")
+                st.markdown("🟢 **STATUS: TIKE RAHO (HOLD)** — Market abhi aapke entry zone ke paas safe corridor mein hai. Theta decay chal raha hai.")
             elif price_drift > 120:
                 st.markdown("🟡 **STATUS: MONITOR CLOSELY** — Market upar ki taraf drift kar rahi hai. Resistance wall par nazar rakhein.")
             else:
