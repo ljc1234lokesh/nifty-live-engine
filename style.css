@@ -1,5 +1,5 @@
 .block-container {
-    padding-top: 0.75rem !important;
+    padding-top: 0.5rem !important;
     padding-bottom: 1.5rem !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
@@ -9,15 +9,41 @@ header[data-testid="stHeader"] { display: none !important; }
 [data-stale="true"] { opacity: 1 !important; transition: none !important; }
 div[data-testid="stStatusWidget"] { display: none !important; }
 
+/* Sticky Top Wrapper (Red Box Area Frozen on Top) */
+.sticky-top-container {
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    background: #0e131f !important;
+    padding-top: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #1f2937;
+    margin-bottom: 10px;
+}
+
+/* Brand Header */
+.brand-header {
+    background: linear-gradient(90deg, #0b0f19 0%, #111827 50%, #0b0f19 100%) !important;
+    border: 1px solid #1f2937 !important;
+    border-radius: 8px;
+    padding: 8px 14px;
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
 /* Top Index Tickers */
 .index-ticker {
     background: #111827 !important;
     border: 1px solid #1f2937 !important;
     border-radius: 8px;
-    padding: 8px 10px;
+    padding: 6px 8px;
     text-align: center;
     color: #f8fafc !important;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 
 /* 5-Card OI & Sentiment Strip */
