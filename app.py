@@ -145,13 +145,13 @@ def load_angel_master_data():
 
 nfo_df, INDEX_TOKENS = load_angel_master_data()
 
-# --- 2. LIVE INDICES & COMPILED OHLC FETCHER ---
+# --- 2. LIVE INDICES & OFFICIAL OHLC FETCHER (DIRECT FROM ANGEL ONE) ---
 @st.cache_data(ttl=5)
 def get_comprehensive_indices(idx_tokens):
     out = {
-        "nifty": {"ltp": 25225.65, "open": 25180.0, "high": 25300.0, "low": 25150.0, "close": 25180.0},
-        "banknifty": {"ltp": 61110.30, "open": 60900.0, "high": 61300.0, "low": 60800.0, "close": 60792.0},
-        "sensex": {"ltp": 81818.83, "open": 81500.0, "high": 82000.0, "low": 81400.0, "close": 81100.0},
+        "nifty": {"ltp": 25243.30, "open": 25213.50, "high": 25384.80, "low": 25142.95, "close": 25255.05},
+        "banknifty": {"ltp": 61281.05, "open": 60801.85, "high": 61406.35, "low": 60723.10, "close": 60792.40},
+        "sensex": {"ltp": 81871.62, "open": 81762.27, "high": 82325.61, "low": 81576.15, "close": 81879.40},
         "vix": 16.88
     }
     try:
@@ -160,21 +160,16 @@ def get_comprehensive_indices(idx_tokens):
         t_vix   = idx_tokens["VIX"]
         t_snx   = idx_tokens["SENSEX"]
 
+        # 1. Fetch live LTP first for speed
         res_nse = smart_api.getMarketData("LTP", {"NSE": [t_nifty, t_bnf, t_vix]})
         if res_nse and res_nse.get("status") and "data" in res_nse:
             for item in res_nse["data"].get("fetched", []):
                 tok = str(item["symbolToken"])
                 ltp = float(item["ltp"])
-                # Extracting OHLC safely with realistic fallback spread if missing
-                opn = float(item.get("open", ltp - 15)) if float(item.get("open", 0)) > 0 else ltp - 20
-                hi  = float(item.get("high", ltp + 25)) if float(item.get("high", 0)) > 0 else ltp + 40
-                lo  = float(item.get("low", ltp - 25)) if float(item.get("low", 0)) > 0 else ltp - 40
-                cls = float(item.get("close", ltp - 10)) if float(item.get("close", 0)) > 0 else ltp - 15
-
                 if tok == t_nifty and ltp > 10000:
-                    out["nifty"] = {"ltp": ltp, "open": opn, "high": max(hi, ltp), "low": min(lo, ltp), "close": cls}
+                    out["nifty"]["ltp"] = ltp
                 elif tok == t_bnf and ltp > 25000:
-                    out["banknifty"] = {"ltp": ltp, "open": opn, "high": max(hi, ltp), "low": min(lo, ltp), "close": cls}
+                    out["banknifty"]["ltp"] = ltp
                 elif tok == t_vix and ltp > 0:
                     out["vix"] = ltp
 
@@ -182,14 +177,32 @@ def get_comprehensive_indices(idx_tokens):
         if res_bse and res_bse.get("status") and "data" in res_bse:
             for item in res_bse["data"].get("fetched", []):
                 if str(item["symbolToken"]) == t_snx:
-                    ltp = float(item["ltp"])
-                    out["sensex"] = {
-                        "ltp": ltp, 
-                        "open": float(item.get("open", ltp - 50)) if float(item.get("open", 0)) > 0 else ltp - 60, 
-                        "high": float(item.get("high", ltp + 80)) if float(item.get("high", 0)) > 0 else ltp + 100, 
-                        "low": float(item.get("low", ltp - 80)) if float(item.get("low", 0)) > 0 else ltp - 100, 
-                        "close": float(item.get("close", ltp - 30)) if float(item.get("close", 0)) > 0 else ltp - 40
-                    }
+                    out["sensex"]["ltp"] = float(item["ltp"])
+
+        # 2. Fetch exact today's OHLC via Angel One Candle API (Interval: ONE_DAY)
+        to_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        from_date = datetime.datetime.now().strftime("%Y-%m-%d 09:00")
+        
+        for idx_key, tok_val, exch in [("nifty", t_nifty, "NSE"), ("banknifty", t_bnf, "NSE"), ("sensex", t_snx, "BSE")]:
+            try:
+                candle_req = {
+                    "exchange": exch,
+                    "symboltoken": tok_val,
+                    "interval": "ONE_DAY",
+                    "fromdate": from_date,
+                    "todate": to_date
+                }
+                c_res = smart_api.getCandleData(candle_req)
+                if c_res and c_res.get("status") and "data" in c_res and len(c_res["data"]) > 0:
+                    # Candle format from Angel API: [Timestamp, Open, High, Low, Close, Volume]
+                    latest_candle = c_res["data"][-1]
+                    out[idx_key]["open"] = float(latest_candle[1])
+                    out[idx_key]["high"] = float(latest_candle[2])
+                    out[idx_key]["low"] = float(latest_candle[3])
+                    out[idx_key]["close"] = float(latest_candle[4])
+            except Exception:
+                pass
+
     except Exception:
         pass
     return out
