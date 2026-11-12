@@ -119,7 +119,7 @@ div[data-testid="stStatusWidget"] { display: none !important; }
     border: 1px solid #334155 !important;
 }
 
-/* Compact Risk Strip */
+/* Compact Risk Strip (High Contrast Bright Text) */
 .risk-strip {
     display: flex;
     justify-content: space-between;
@@ -130,5 +130,9 @@ div[data-testid="stStatusWidget"] { display: none !important; }
     border-radius: 6px;
     padding: 8px 12px;
     margin-bottom: 10px;
-    font-size: 0.82rem;
+    font-size: 0.84rem;
+    color: #f8fafc !important;
+}
+.risk-strip div, .risk-strip b, .risk-strip span {
+    color: #f8fafc !important;
 }
