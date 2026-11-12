@@ -52,12 +52,11 @@ div[data-testid="stStatusWidget"] { display: none !important; }
     margin-bottom: 2px;
 }
 
-/* Fix Streamlit Radio / Tabs Text Visibility (Blue Marked Fix) */
-div[data-baseweb="radio"] div {
-    color: #f8fafc !important;
-    font-weight: 600 !important;
+/* --- FORCE BRIGHT WHITE ON ALL STREAMLIT RADIO / LABELS / TABS --- */
+.stRadio label, .stRadio div, div[data-baseweb="radio"] *, span, label {
+    color: #ffffff !important;
 }
-label[data-baseweb="radio"] p, span.st-bp {
+div[data-testid="stMarkdownContainer"] p {
     color: #f8fafc !important;
 }
 
