@@ -496,7 +496,7 @@ with nav_col3:
     auto_refresh_on = st.toggle("Sync (10s)", value=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=10 * 1000, key="terminal_refresh_organized_v7")
+    st_autorefresh(interval=10 * 1000, key="terminal_refresh_organized_v8")
 
 st.markdown("<hr style='margin: 6px 0 12px 0; border-color: #1f2937;'>", unsafe_allow_html=True)
 
@@ -508,7 +508,7 @@ if nav_mode == "🛡️ Saved Live Tracker":
     with head_l:
         st.markdown(f"### 🛡️ Live Trade Tracker & P&L Desk ({len(st.session_state.saved_strategies)} Active)")
         if TG_BOT_TOKEN and TG_CHAT_ID:
-            st.caption("📲 **Telegram Alerts: ACTIVE** — Profit Target (65%), Stop-Loss aur Trade Exit Reports connected.")
+            st.caption("📲 **Telegram Alerts: ACTIVE** — Profit Target (65%), Stop-Loss, Strike Updates aur Trade Exit Reports connected.")
         else:
             st.caption("🔕 **Telegram Alerts: OFF** — Secrets mein `TELEGRAM_BOT_TOKEN` aur `TELEGRAM_CHAT_ID` jodein.")
     with head_r:
@@ -689,7 +689,21 @@ if nav_mode == "🛡️ Saved Live Tracker":
 
                         st.session_state.saved_strategies[idx]["last_alert_state"] = "HOLD"
                         save_strategies_to_disk(st.session_state.saved_strategies)
-                        st.session_state.flash_msg = "✅ Updated Strikes & Entry Prices Saved!"
+
+                        # --- SEND UPDATED STRIKES & ENTRY PRICES TO TELEGRAM ---
+                        if TG_BOT_TOKEN and TG_CHAT_ID:
+                            updated_legs_txt = "\n".join([
+                                f"• {l['action']} {l['readable']} @ ₹{l['premium']:.2f}"
+                                for l in st.session_state.saved_strategies[idx]["legs"]
+                            ])
+                            send_telegram_alert(
+                                f"✏️ <b>Strategy Updated (Strikes / Entry)!</b>\n"
+                                f"<b>#{idx+1} • {strat['name']} ({exp_str})</b>\n"
+                                f"{updated_legs_txt}\n"
+                                f"⏰ Updated at: {ist_time_str}"
+                            )
+
+                        st.session_state.flash_msg = "✅ Updated Strikes Saved & Sent to Telegram!"
                         st.rerun()
 
             with act_col2:
