@@ -290,21 +290,29 @@ if nav_mode == "🛡️ Saved Live Tracker":
     if not st.session_state.saved_strategies:
         st.info("ℹ️ Koi bhi strategy save nahi ki gayi hai. 'Quant Terminal' mein jaakar 'Save Strategy' par click karein.")
     else:
-        for idx, strat in enumerate(st.session_state.saved_strategies, 1):
-            st.markdown(f"""
-            <div class="section-box">
-                <div style="display:flex; justify-content:space-between;">
-                    <div><b>#{idx} - {strat['name']}</b> ({strat['expiry']})</div>
-                    <div style="color:#38bdf8;">Entry Spot: ₹{strat['entry_spot']:,.2f}</div>
-                </div>
-                <hr style="border-color:#1f2937; margin:8px 0;">
-                <div style="font-size:0.83rem; color:#cbd5e1; margin-bottom:6px;">
-                    Max Profit Target: <b>₹{strat['max_profit']:,.0f}</b> | Max Risk: <b>₹{strat['max_loss']:,.0f}</b>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+        for idx, strat in enumerate(st.session_state.saved_strategies[:]):
+            col_info, col_del = st.columns([5, 1])
             
-                        # Live Decision Engine for this Saved Strategy
+            with col_info:
+                st.markdown(f"""
+                <div class="section-box" style="margin-bottom: 4px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div><b>#{idx+1} - {strat['name']}</b> ({strat['expiry']})</div>
+                        <div style="color:#38bdf8; font-size: 0.85rem;">Entry Spot: <b>₹{strat['entry_spot']:,.2f}</b></div>
+                    </div>
+                    <hr style="border-color:#1f2937; margin:6px 0;">
+                    <div style="font-size:0.83rem; color:#cbd5e1;">
+                        Max Profit Target: <b>₹{strat['max_profit']:,.0f}</b> | Max Risk: <b>₹{strat['max_loss']:,.0f}</b>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_del:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("🗑️ Delete", key=f"del_strat_{idx}"):
+                    st.session_state.saved_strategies.pop(idx)
+                    st.rerun()
+
             price_drift = live_spot - strat['entry_spot']
             
             if abs(price_drift) < 60:
@@ -313,6 +321,7 @@ if nav_mode == "🛡️ Saved Live Tracker":
                 st.markdown("🟡 **STATUS: MONITOR CLOSELY** — Market upar ki taraf drift kar rahi hai. Resistance wall par nazar rakhein.")
             else:
                 st.markdown("🔴 **STATUS: EXIT / RE-ALIGN** — Market mein tezi se movement hui hai. Apne risk management ke mutabiq exit par vichar karein.")
+            st.markdown("---")
 
 else:
     c_head1, c_head2, c_head3 = st.columns([1.2, 2.3, 0.8])
@@ -324,7 +333,7 @@ else:
         auto_refresh_on = st.toggle("Sync (10s)", value=True)
 
     if auto_refresh_on:
-        st_autorefresh(interval=10 * 1000, key="terminal_refresh_final")
+        st_autorefresh(interval=10 * 1000, key="terminal_refresh_final_v2")
 
     selected_idx = expiry_labels.index(selected_label)
     chosen_exp_date = top_expiries[selected_idx]
