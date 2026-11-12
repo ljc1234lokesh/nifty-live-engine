@@ -373,7 +373,7 @@ st.markdown(f"""
 <div class="analytics-grid">
     <div class="card">
         <div class="card-label">India VIX</div>
-        <div class="card-val" style="color:#f59e0b;">{live_vix:.2f}%</div>
+        <div class="card-val" style="color:#f59e0b;">{live_vix:.2f}</div>
         <div class="card-sub">Market Volatility</div>
     </div>
     <div class="card">
