@@ -14,7 +14,7 @@ from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Nifty Institutional Analytics Terminal", layout="wide", initial_sidebar_state="collapsed")
 
-# --- PROFESSIONAL TRADING TERMINAL STYLING ---
+# --- PROFESSIONAL TRADING TERMINAL STYLING (NO DIMMING, NO SPINNER) ---
 st.markdown("""
 <style>
     .block-container {
@@ -25,6 +25,8 @@ st.markdown("""
         max-width: 100% !important;
     }
     header[data-testid="stHeader"] { display: none !important; }
+    [data-stale="true"] { opacity: 1 !important; transition: none !important; }
+    div[data-testid="stStatusWidget"] { display: none !important; }
     .analytics-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -116,7 +118,7 @@ except Exception:
     st.stop()
 
 # --- ANGEL ONE SESSION ---
-@st.cache_resource(ttl=1800)
+@st.cache_resource(ttl=1800, show_spinner=False)
 def get_angel_session(api_key, client_code, pwd, totp_sec):
     try:
         smart_api = SmartConnect(api_key)
@@ -135,7 +137,7 @@ if not smart_api:
     st.stop()
 
 # --- 1. OFFICIAL SCRIP MASTER CACHE ---
-@st.cache_data(ttl=43200)
+@st.cache_data(ttl=43200, show_spinner=False)
 def load_angel_master_data():
     url = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
     r = requests.get(url, timeout=30)
@@ -168,13 +170,50 @@ def load_angel_master_data():
 
 nfo_df, INDEX_TOKENS = load_angel_master_data()
 
-# --- 2. LIVE INDICES & OFFICIAL OHLC FETCHER ---
-@st.cache_data(ttl=5)
+# --- 2. DAILY OHLC CACHE (SILENT BACKGROUND FETCH EVERY 60s) ---
+@st.cache_data(ttl=60, show_spinner=False)
+def get_daily_ohlc_cached(idx_tokens):
+    ohlc = {
+        "nifty": {"open": 25213.50, "high": 25384.80, "low": 25142.95, "close": 25255.05},
+        "banknifty": {"open": 60801.85, "high": 61406.35, "low": 60723.10, "close": 60792.40},
+        "sensex": {"open": 81762.27, "high": 82325.61, "low": 81576.15, "close": 81879.40}
+    }
+    to_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    from_date = datetime.datetime.now().strftime("%Y-%m-%d 09:00")
+    for idx_key, tok_val, exch in [
+        ("nifty", idx_tokens["NIFTY"], "NSE"),
+        ("banknifty", idx_tokens["BANKNIFTY"], "NSE"),
+        ("sensex", idx_tokens["SENSEX"], "BSE")
+    ]:
+        try:
+            candle_req = {
+                "exchange": exch,
+                "symboltoken": tok_val,
+                "interval": "ONE_DAY",
+                "fromdate": from_date,
+                "todate": to_date
+            }
+            c_res = smart_api.getCandleData(candle_req)
+            if c_res and c_res.get("status") and "data" in c_res and len(c_res["data"]) > 0:
+                latest_candle = c_res["data"][-1]
+                ohlc[idx_key] = {
+                    "open": float(latest_candle[1]),
+                    "high": float(latest_candle[2]),
+                    "low": float(latest_candle[3]),
+                    "close": float(latest_candle[4])
+                }
+        except Exception:
+            pass
+    return ohlc
+
+# --- 3. FAST LIVE LTP FETCHER (SILENT BACKGROUND FETCH EVERY 5s) ---
+@st.cache_data(ttl=5, show_spinner=False)
 def get_comprehensive_indices(idx_tokens):
+    ohlc_data = get_daily_ohlc_cached(idx_tokens)
     out = {
-        "nifty": {"ltp": 25243.30, "open": 25213.50, "high": 25384.80, "low": 25142.95, "close": 25255.05},
-        "banknifty": {"ltp": 61281.05, "open": 60801.85, "high": 61406.35, "low": 60723.10, "close": 60792.40},
-        "sensex": {"ltp": 81871.62, "open": 81762.27, "high": 82325.61, "low": 81576.15, "close": 81879.40},
+        "nifty": {"ltp": 25243.30, **ohlc_data["nifty"]},
+        "banknifty": {"ltp": 61281.05, **ohlc_data["banknifty"]},
+        "sensex": {"ltp": 81871.62, **ohlc_data["sensex"]},
         "vix": 16.88
     }
     try:
@@ -200,28 +239,6 @@ def get_comprehensive_indices(idx_tokens):
             for item in res_bse["data"].get("fetched", []):
                 if str(item["symbolToken"]) == t_snx:
                     out["sensex"]["ltp"] = float(item["ltp"])
-
-        to_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        from_date = datetime.datetime.now().strftime("%Y-%m-%d 09:00")
-        
-        for idx_key, tok_val, exch in [("nifty", t_nifty, "NSE"), ("banknifty", t_bnf, "NSE"), ("sensex", t_snx, "BSE")]:
-            try:
-                candle_req = {
-                    "exchange": exch,
-                    "symboltoken": tok_val,
-                    "interval": "ONE_DAY",
-                    "fromdate": from_date,
-                    "todate": to_date
-                }
-                c_res = smart_api.getCandleData(candle_req)
-                if c_res and c_res.get("status") and "data" in c_res and len(c_res["data"]) > 0:
-                    latest_candle = c_res["data"][-1]
-                    out[idx_key]["open"] = float(latest_candle[1])
-                    out[idx_key]["high"] = float(latest_candle[2])
-                    out[idx_key]["low"] = float(latest_candle[3])
-                    out[idx_key]["close"] = float(latest_candle[4])
-            except Exception:
-                pass
     except Exception:
         pass
     return out
@@ -231,7 +248,7 @@ live_spot = market_data["nifty"]["ltp"]
 live_vix = market_data["vix"]
 atm_strike = int(round(live_spot / 50.0) * 50)
 
-# --- 3. IST ENTRY TIMING & QUANT CLOCK ---
+# --- 4. IST ENTRY TIMING & QUANT CLOCK ---
 utc_now = datetime.datetime.now(datetime.timezone.utc)
 ist_now = utc_now + datetime.timedelta(hours=5, minutes=30)
 ist_time_str = ist_now.strftime("%H:%M:%S IST")
@@ -263,7 +280,7 @@ else:
     entry_advice = "Closing Gamma Move! Avoid New Positions"
     sig_color = "#f97316"
 
-# --- 4. EXPIRY SELECTOR & TOP TICKER (OHLC) ---
+# --- 5. EXPIRY SELECTOR & TOP TICKER (OHLC) ---
 today_date = ist_now.date()
 valid_expiries = sorted([d for d in nfo_df["expiry_dt"].dropna().unique() if d >= today_date])
 if not valid_expiries:
@@ -300,7 +317,7 @@ with t3:
 
 st.markdown("---")
 
-# --- NAVIGATION & AUTO REFRESH ---
+# --- NAVIGATION & AUTO REFRESH (LOCKED TAB KEYS) ---
 nav_col1, nav_col2 = st.columns([3, 1])
 with nav_col1:
     nav_mode = st.radio(
@@ -313,19 +330,18 @@ with nav_col1:
 with nav_col2:
     auto_refresh_on = st.toggle("Sync (10s)", value=True)
 
-if nav_mode == "🛡️ Saved Live Tracker":
-    st.markdown(f"### 🛡️ Live Saved Strategies & Strike Tracker ({len(st.session_state.saved_strategies)})")
+if auto_refresh_on:
+    st_autorefresh(interval=10 * 1000, key="terminal_refresh_silent_v4")
 
 # ==============================================================================
 # MODE 2: SAVED LIVE TRACKER (WITH STRIKE PRICES, LIVE LTP & P&L)
 # ==============================================================================
-if "Saved Live Tracker" in nav_mode:
-    st.markdown("### 🛡️ Live Saved Strategies & Strike Tracker")
+if nav_mode == "🛡️ Saved Live Tracker":
+    st.markdown(f"### 🛡️ Live Saved Strategies & Strike Tracker ({len(st.session_state.saved_strategies)})")
     
     if not st.session_state.saved_strategies:
         st.info("ℹ️ Koi bhi strategy save nahi ki gayi hai. 'Quant Terminal' mein jaakar 'Save Strategy' par click karein.")
     else:
-        # Collect all tokens from saved strategies to fetch live option LTP in 1 batch
         all_saved_tokens = []
         for s in st.session_state.saved_strategies:
             for leg in s.get("legs", []):
@@ -346,7 +362,6 @@ if "Saved Live Tracker" in nav_mode:
             col_info, col_del = st.columns([5.5, 1])
             lot_qty = strat.get("lot_size", 65)
             
-            # Calculate Live Running P&L across all saved legs
             running_pnl_pts = 0.0
             leg_html_rows = ""
             for l_idx, leg in enumerate(strat.get("legs", []), 1):
@@ -409,7 +424,6 @@ if "Saved Live Tracker" in nav_mode:
                     save_strategies_to_disk(st.session_state.saved_strategies)
                     st.rerun()
 
-            # Live Decision Engine (Based on Spot Drift & Profit/Loss % Target)
             price_drift = live_spot - strat['entry_spot']
             max_p = max(strat.get('max_profit', 1), 1)
             max_l = max(strat.get('max_loss', 1), 1)
@@ -451,13 +465,13 @@ else:
     dte_days = max((chosen_exp_date - today_date).days, 1)
     display_exp = chosen_exp_date.strftime("%d-%b")
 
-    # --- 5. INSTITUTIONAL OI & MAX PAIN VALUES (DYNAMIC) ---
+    # --- 6. INSTITUTIONAL OI & MAX PAIN VALUES (DYNAMIC) ---
     simulated_pcr = 0.89
     simulated_max_pain = atm_strike
     call_wall = atm_strike + 150
     put_wall  = atm_strike - 150
 
-    # --- 6. MULTI-STRATEGY ENGINE (AI AUTO OR MANUAL OVERRIDE) ---
+    # --- 7. MULTI-STRATEGY ENGINE (AI AUTO OR MANUAL OVERRIDE) ---
     if "AI Auto-Select" in strat_mode_choice:
         if live_spot >= call_wall - 30:
             active_strat_key = "BEAR_CALL"
@@ -509,7 +523,7 @@ else:
             {"type": "CE", "action": "BUY",  "strike": call_wall + 200, "note": "Call Wall Protection Wing"}
         ]
 
-    # --- 7. LTP FETCHER & LOT SIZE (65) ---
+    # --- 8. LTP FETCHER & LOT SIZE (65) ---
     verified_baseline_chain = {
         (24800, "PE"): 90.95, (25000, "PE"): 159.30, (25200, "CE"): 206.10, (25400, "CE"): 133.55
     }
@@ -569,7 +583,7 @@ else:
             "note": spec["note"]
         })
 
-    # --- 8. RISK & PAYOFF COMPUTATION ---
+    # --- 9. RISK & PAYOFF COMPUTATION ---
     spot_range = np.linspace(live_spot - 800, live_spot + 800, 300)
     pnl = np.zeros_like(spot_range)
     net_credit = 0.0
