@@ -119,7 +119,7 @@ div[data-testid="stStatusWidget"] { display: none !important; }
     border: 1px solid #334155 !important;
 }
 
-/* Compact Risk Strip (High Contrast Bright Text) */
+/* Compact Risk Strip (Preserving Profit Green & Risk Red Colors) */
 .risk-strip {
     display: flex;
     justify-content: space-between;
@@ -133,6 +133,9 @@ div[data-testid="stStatusWidget"] { display: none !important; }
     font-size: 0.84rem;
     color: #f8fafc !important;
 }
-.risk-strip div, .risk-strip b, .risk-strip span {
+.risk-strip div {
+    color: #94a3b8 !important;
+}
+.risk-strip b {
     color: #f8fafc !important;
 }
