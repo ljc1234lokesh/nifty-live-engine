@@ -14,7 +14,7 @@ from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Nifty Institutional Analytics Terminal", layout="wide", initial_sidebar_state="collapsed")
 
-# --- PROFESSIONAL TRADING TERMINAL STYLING (NO DIMMING, NO SPINNER) ---
+# --- PROFESSIONAL TRADING TERMINAL STYLING (LIGHT & DARK MODE CONTRAST LOCKED) ---
 st.markdown("""
 <style>
     .block-container {
@@ -34,14 +34,15 @@ st.markdown("""
         margin-bottom: 12px;
     }
     .card {
-        background: #111827;
-        border: 1px solid #1f2937;
+        background: #111827 !important;
+        border: 1px solid #1f2937 !important;
         border-radius: 8px;
         padding: 10px 12px;
+        color: #f8fafc !important;
     }
     .card-label {
         font-size: 0.72rem;
-        color: #94a3b8;
+        color: #94a3b8 !important;
         text-transform: uppercase;
         letter-spacing: 0.5px;
         margin-bottom: 3px;
@@ -49,23 +50,27 @@ st.markdown("""
     .card-val {
         font-size: 1.15rem;
         font-weight: 700;
-        color: #f8fafc;
+        color: #f8fafc !important;
         white-space: nowrap;
     }
     .card-sub {
         font-size: 0.72rem;
-        color: #38bdf8;
+        color: #38bdf8 !important;
         margin-top: 3px;
     }
     .section-box {
-        background: #111827;
-        border: 1px solid #1f2937;
+        background: #111827 !important;
+        border: 1px solid #1f2937 !important;
         border-radius: 8px;
         padding: 14px;
         margin-bottom: 12px;
+        color: #f8fafc !important;
+    }
+    .section-box b, .section-box div, .section-box span {
+        color: inherit;
     }
     .leg-row {
-        background: #0b0f19;
+        background: #0b0f19 !important;
         border-left: 4px solid #38bdf8;
         padding: 8px 12px;
         margin-bottom: 6px;
@@ -74,13 +79,26 @@ st.markdown("""
         display: flex;
         justify-content: space-between;
         align-items: center;
+        color: #f8fafc !important;
+    }
+    .leg-row b {
+        color: #f8fafc !important;
+    }
+    .leg-row code {
+        background: #1e293b !important;
+        color: #38bdf8 !important;
+        padding: 2px 6px !important;
+        border-radius: 4px !important;
+        font-weight: 600 !important;
+        border: 1px solid #334155 !important;
     }
     .index-ticker {
-        background: #111827;
-        border: 1px solid #1f2937;
+        background: #111827 !important;
+        border: 1px solid #1f2937 !important;
         border-radius: 6px;
         padding: 8px;
         text-align: center;
+        color: #f8fafc !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -114,8 +132,22 @@ try:
     PASSWORD = st.secrets["PASSWORD"]
     TOTP_SECRET = st.secrets["TOTP_SECRET"]
 except Exception:
-    st.error("⚠️ Credentials missing in Streamlit Secrets!")
+    st.error("⚠️ Angel One Credentials missing in Streamlit Secrets!")
     st.stop()
+
+TG_BOT_TOKEN = st.secrets.get("TELEGRAM_BOT_TOKEN", "")
+TG_CHAT_ID = st.secrets.get("TELEGRAM_CHAT_ID", "")
+
+def send_telegram_alert(message_text):
+    if not TG_BOT_TOKEN or not TG_CHAT_ID:
+        return False
+    try:
+        url = f"https://api.telegram.org/bot{TG_BOT_TOKEN}/sendMessage"
+        payload = {"chat_id": TG_CHAT_ID, "text": message_text, "parse_mode": "HTML"}
+        r = requests.post(url, json=payload, timeout=8)
+        return r.status_code == 200
+    except Exception:
+        return False
 
 # --- ANGEL ONE SESSION ---
 @st.cache_resource(ttl=1800, show_spinner=False)
@@ -248,7 +280,105 @@ live_spot = market_data["nifty"]["ltp"]
 live_vix = market_data["vix"]
 atm_strike = int(round(live_spot / 50.0) * 50)
 
-# --- 4. IST ENTRY TIMING & QUANT CLOCK ---
+# --- 4. REAL-TIME OPTION CHAIN OI ENGINE (LIVE PCR, MAX PAIN & OI WALLS) ---
+@st.cache_data(ttl=15, show_spinner=False)
+def get_live_option_chain_oi(exp_date_str, atm_val):
+    fallback = {
+        "pcr": 0.92,
+        "max_pain": atm_val,
+        "call_wall": atm_val + 150,
+        "put_wall": atm_val - 150,
+        "call_wall_oi": 0,
+        "put_wall_oi": 0,
+        "is_live": False,
+        "ltp_dict": {}
+    }
+    try:
+        exp_dt_obj = datetime.date.fromisoformat(exp_date_str)
+        sub_df = nfo_df[nfo_df["expiry_dt"] == exp_dt_obj]
+        if sub_df.empty:
+            return fallback
+
+        strikes_scan = [atm_val + i * 50 for i in range(-8, 9)]
+        scan_df = sub_df[sub_df["strike_int"].isin(strikes_scan)]
+        tokens = scan_df["token"].astype(str).tolist()
+        if not tokens:
+            return fallback
+
+        res_full = smart_api.getMarketData("FULL", {"NFO": tokens})
+        if not (res_full and res_full.get("status") and "data" in res_full):
+            return fallback
+
+        fetched = res_full["data"].get("fetched", [])
+        if not fetched:
+            return fallback
+
+        tok_meta = {}
+        for _, r in scan_df.iterrows():
+            tok_meta[str(r["token"])] = (int(r["strike_int"]), str(r["opt_type"]))
+
+        ce_oi_map = {}
+        pe_oi_map = {}
+        ltp_dict = {}
+
+        for item in fetched:
+            tok = str(item.get("symbolToken", ""))
+            if tok in tok_meta:
+                st_k, o_type = tok_meta[tok]
+                oi_val = float(item.get("opnInterest", 0))
+                ltp_val = float(item.get("ltp", 0))
+                ltp_dict[tok] = ltp_val
+                if o_type == "CE":
+                    ce_oi_map[st_k] = oi_val
+                elif o_type == "PE":
+                    pe_oi_map[st_k] = oi_val
+
+        tot_ce_oi = sum(ce_oi_map.values())
+        tot_pe_oi = sum(pe_oi_map.values())
+
+        if tot_ce_oi <= 0 or tot_pe_oi <= 0:
+            fallback["ltp_dict"] = ltp_dict
+            return fallback
+
+        pcr_live = round(tot_pe_oi / tot_ce_oi, 2)
+
+        # Call Wall = Strike >= ATM with highest Call OI
+        otm_ce = {k: v for k, v in ce_oi_map.items() if k >= atm_val}
+        call_wall_k = max(otm_ce, key=otm_ce.get) if otm_ce else max(ce_oi_map, key=ce_oi_map.get)
+
+        # Put Wall = Strike <= ATM with highest Put OI
+        otm_pe = {k: v for k, v in pe_oi_map.items() if k <= atm_val}
+        put_wall_k = max(otm_pe, key=otm_pe.get) if otm_pe else max(pe_oi_map, key=pe_oi_map.get)
+
+        # True Max Pain Calculation across scanned strikes
+        min_pain_val = float("inf")
+        max_pain_k = atm_val
+        for candidate_spot in strikes_scan:
+            pain = 0.0
+            for k_c, oi_c in ce_oi_map.items():
+                if candidate_spot > k_c:
+                    pain += (candidate_spot - k_c) * oi_c
+            for k_p, oi_p in pe_oi_map.items():
+                if candidate_spot < k_p:
+                    pain += (k_p - candidate_spot) * oi_p
+            if pain < min_pain_val:
+                min_pain_val = pain
+                max_pain_k = candidate_spot
+
+        return {
+            "pcr": pcr_live,
+            "max_pain": max_pain_k,
+            "call_wall": call_wall_k,
+            "put_wall": put_wall_k,
+            "call_wall_oi": int(ce_oi_map.get(call_wall_k, 0)),
+            "put_wall_oi": int(pe_oi_map.get(put_wall_k, 0)),
+            "is_live": True,
+            "ltp_dict": ltp_dict
+        }
+    except Exception:
+        return fallback
+
+# --- 5. IST ENTRY TIMING & QUANT CLOCK ---
 utc_now = datetime.datetime.now(datetime.timezone.utc)
 ist_now = utc_now + datetime.timedelta(hours=5, minutes=30)
 ist_time_str = ist_now.strftime("%H:%M:%S IST")
@@ -280,7 +410,7 @@ else:
     entry_advice = "Closing Gamma Move! Avoid New Positions"
     sig_color = "#f97316"
 
-# --- 5. EXPIRY SELECTOR & TOP TICKER (OHLC) ---
+# --- 6. EXPIRY SELECTOR & TOP TICKER (OHLC) ---
 today_date = ist_now.date()
 valid_expiries = sorted([d for d in nfo_df["expiry_dt"].dropna().unique() if d >= today_date])
 if not valid_expiries:
@@ -331,14 +461,30 @@ with nav_col2:
     auto_refresh_on = st.toggle("Sync (10s)", value=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=10 * 1000, key="terminal_refresh_silent_v4")
+    st_autorefresh(interval=10 * 1000, key="terminal_refresh_silent_v5")
 
 # ==============================================================================
-# MODE 2: SAVED LIVE TRACKER (WITH STRIKE PRICES, LIVE LTP & P&L)
+# MODE 2: SAVED LIVE TRACKER (WITH STRIKE PRICES, LIVE LTP & TELEGRAM ALERTS)
 # ==============================================================================
 if nav_mode == "🛡️ Saved Live Tracker":
     st.markdown(f"### 🛡️ Live Saved Strategies & Strike Tracker ({len(st.session_state.saved_strategies)})")
     
+    # Telegram Status Bar
+    tg_col1, tg_col2 = st.columns([3.5, 1.5])
+    with tg_col1:
+        if TG_BOT_TOKEN and TG_CHAT_ID:
+            st.caption("📲 **Telegram Live Alerts: ACTIVE** (Target Hit ya Stop-Loss par automatic message jayega)")
+        else:
+            st.caption("🔕 **Telegram Alerts: OFF** (Streamlit Secrets mein `TELEGRAM_BOT_TOKEN` aur `TELEGRAM_CHAT_ID` jodein)")
+    with tg_col2:
+        if TG_BOT_TOKEN and TG_CHAT_ID:
+            if st.button("🔔 Send Test Alert", key="test_tg_btn"):
+                ok = send_telegram_alert(f"✅ <b>Quant Terminal Connected!</b>\nNifty Spot: ₹{live_spot:,.2f}\nTime: {ist_time_str}")
+                if ok:
+                    st.toast("✅ Telegram par Test Alert bhej diya gaya hai!")
+                else:
+                    st.toast("❌ Telegram message fail hua. Token/Chat ID check karein.")
+
     if not st.session_state.saved_strategies:
         st.info("ℹ️ Koi bhi strategy save nahi ki gayi hai. 'Quant Terminal' mein jaakar 'Save Strategy' par click karein.")
     else:
@@ -358,6 +504,7 @@ if nav_mode == "🛡️ Saved Live Tracker":
             except Exception:
                 pass
 
+        state_changed = False
         for idx, strat in enumerate(st.session_state.saved_strategies[:]):
             col_info, col_del = st.columns([5.5, 1])
             lot_qty = strat.get("lot_size", 65)
@@ -383,7 +530,7 @@ if nav_mode == "🛡️ Saved Live Tracker":
                 leg_html_rows += (
                     f"<div class='leg-row' style='border-left-color:{b_col}; margin-bottom:4px; padding:6px 10px;'>"
                     f"<div><b>Leg {l_idx}:</b> {b_txt} <code>{leg['readable']}</code></div>"
-                    f"<div style='font-size:0.82rem; color:#cbd5e1;'>"
+                    f"<div style='font-size:0.82rem; color:#e2e8f0;'>"
                     f"Entry: <b>₹{entry_p:.2f}</b> &rarr; Live: <b>₹{curr_p:.2f}</b> &nbsp;|&nbsp; "
                     f"<span style='color:{pnl_col}; font-weight:700;'>{pnl_sign}₹{leg_pnl_rs:,.0f}</span>"
                     f"</div></div>"
@@ -397,8 +544,8 @@ if nav_mode == "🛡️ Saved Live Tracker":
                 st.markdown(f"""
                 <div class="section-box" style="margin-bottom: 6px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
-                        <div><b>#{idx+1} - {strat['name']}</b> ({strat['expiry']}) <span style="color:#94a3b8; font-size:0.75rem;">| Saved at {strat.get('time', '')}</span></div>
-                        <div style="font-size: 0.85rem;">
+                        <div style="color:#f8fafc;"><b>#{idx+1} - {strat['name']}</b> ({strat['expiry']}) <span style="color:#94a3b8; font-size:0.75rem;">| Saved at {strat.get('time', '')}</span></div>
+                        <div style="font-size: 0.85rem; color:#e2e8f0;">
                             Entry Spot: <b style="color:#38bdf8;">₹{strat['entry_spot']:,.2f}</b> &nbsp;|&nbsp; 
                             Live Spot: <b style="color:#f59e0b;">₹{live_spot:,.2f}</b>
                         </div>
@@ -424,22 +571,47 @@ if nav_mode == "🛡️ Saved Live Tracker":
                     save_strategies_to_disk(st.session_state.saved_strategies)
                     st.rerun()
 
+            # Live Decision Engine + Anti-Spam Telegram Trigger
             price_drift = live_spot - strat['entry_spot']
             max_p = max(strat.get('max_profit', 1), 1)
             max_l = max(strat.get('max_loss', 1), 1)
+            last_alert = strat.get("last_alert_state", "HOLD")
 
             if total_running_pnl >= 0.65 * max_p:
                 st.markdown("🟣 **STATUS: TARGET HIT (BOOK PROFIT)** — Aapke Max Profit ka 65%+ target aa chuka hai! Lalach mat karein, position close karke profit book karein.")
+                if last_alert != "TARGET_HIT":
+                    msg = (
+                        f"🟣 <b>TARGET HIT — BOOK PROFIT!</b>\n"
+                        f"Strategy: <b>{strat['name']} ({strat['expiry']})</b>\n"
+                        f"Live P&L: <b>+₹{total_running_pnl:,.0f}</b> (Target 65%+ Reached)\n"
+                        f"Nifty Spot: ₹{live_spot:,.2f} | Time: {ist_time_str}"
+                    )
+                    if send_telegram_alert(msg):
+                        st.session_state.saved_strategies[idx]["last_alert_state"] = "TARGET_HIT"
+                        state_changed = True
             elif total_running_pnl <= -0.50 * max_l or abs(price_drift) >= 160:
                 st.markdown("🔴 **STATUS: EXIT / STOP-LOSS ALERT** — Market aapki safe range tod rahi hai ya risk badh gaya hai. Turant position adjust ya exit karein!")
+                if last_alert != "SL_HIT":
+                    msg = (
+                        f"🔴 <b>STOP-LOSS / EXIT ALERT!</b>\n"
+                        f"Strategy: <b>{strat['name']} ({strat['expiry']})</b>\n"
+                        f"Live P&L: <b>{tot_sign}₹{total_running_pnl:,.0f}</b>\n"
+                        f"Spot Drift: {price_drift:+.1f} pts | Nifty: ₹{live_spot:,.2f}"
+                    )
+                    if send_telegram_alert(msg):
+                        st.session_state.saved_strategies[idx]["last_alert_state"] = "SL_HIT"
+                        state_changed = True
             elif abs(price_drift) < 70:
                 st.markdown("🟢 **STATUS: TIKE RAHO (HOLD)** — Market abhi aapke entry zone ke paas safe corridor mein hai. Theta decay ka fayda uthayein.")
             else:
-                st.markdown("🟡 **STATUS: MONITOR CLOSELY** — Market mein movement badh rahi hai (Spot Drift: " + f"{price_drift:+.1f} pts). Apne breakeven levels par nazar rakhein.")
+                st.markdown(f"🟡 **STATUS: MONITOR CLOSELY** — Market mein movement badh rahi hai (Spot Drift: {price_drift:+.1f} pts). Apne breakeven levels par nazar rakhein.")
             st.markdown("---")
 
+        if state_changed:
+            save_strategies_to_disk(st.session_state.saved_strategies)
+
 # ==============================================================================
-# MODE 1: QUANT TERMINAL (WITH MULTI-STRATEGY SELECTOR)
+# MODE 1: QUANT TERMINAL (REAL-TIME OPTION CHAIN OI + MULTI-STRATEGY)
 # ==============================================================================
 else:
     c_head1, c_head2, c_head3 = st.columns([1.2, 2.0, 1.5])
@@ -451,7 +623,7 @@ else:
         strat_mode_choice = st.selectbox(
             "Strategy Mode",
             [
-                "🤖 AI Auto-Select (Recommended)",
+                "🤖 AI Auto-Select (OI-Synced)",
                 "🦅 Short Iron Condor (Rangebound)",
                 "🦋 Iron Butterfly (High Theta Pinning)",
                 "🐻 Bear Call Spread (Resistance Defense)",
@@ -465,19 +637,28 @@ else:
     dte_days = max((chosen_exp_date - today_date).days, 1)
     display_exp = chosen_exp_date.strftime("%d-%b")
 
-    # --- 6. INSTITUTIONAL OI & MAX PAIN VALUES (DYNAMIC) ---
-    simulated_pcr = 0.89
-    simulated_max_pain = atm_strike
-    call_wall = atm_strike + 150
-    put_wall  = atm_strike - 150
+    # --- 7. FETCH REAL-TIME OPTION CHAIN OI DATA ---
+    oi_data = get_live_option_chain_oi(chosen_exp_date.isoformat(), atm_strike)
+    live_pcr = oi_data["pcr"]
+    live_max_pain = oi_data["max_pain"]
+    call_wall = oi_data["call_wall"]
+    put_wall  = oi_data["put_wall"]
+    oi_source_tag = "🟢 Live Option Chain OI" if oi_data["is_live"] else "🟡 Estimated OI"
 
-    # --- 7. MULTI-STRATEGY ENGINE (AI AUTO OR MANUAL OVERRIDE) ---
+    if live_pcr >= 1.15:
+        pcr_sentiment = "Bullish (Strong Put Writing)"
+    elif live_pcr <= 0.75:
+        pcr_sentiment = "Bearish (Heavy Call Writing)"
+    else:
+        pcr_sentiment = "Neutral / Rangebound"
+
+    # --- 8. MULTI-STRATEGY ENGINE (POWERED BY LIVE OI WALLS) ---
     if "AI Auto-Select" in strat_mode_choice:
-        if live_spot >= call_wall - 30:
+        if live_spot >= call_wall - 35 or live_pcr <= 0.72:
             active_strat_key = "BEAR_CALL"
-        elif live_spot <= put_wall + 30:
+        elif live_spot <= put_wall + 35 or live_pcr >= 1.25:
             active_strat_key = "BULL_PUT"
-        elif live_vix >= 15.5:
+        elif live_vix >= 15.5 and abs(live_spot - live_max_pain) <= 50:
             active_strat_key = "IRON_FLY"
         else:
             active_strat_key = "IRON_CONDOR"
@@ -492,21 +673,21 @@ else:
 
     if active_strat_key == "BEAR_CALL":
         strat_name = "Bear Call Credit Spread"
-        strat_reason = f"Spot is near {call_wall} Call Wall resistance. Defending upside resistance with hedged credit spread."
+        strat_reason = f"Live Call OI Wall at {call_wall} (PCR: {live_pcr:.2f}). Defending upside resistance with hedged credit spread."
         leg_specs = [
-            {"type": "CE", "action": "SELL", "strike": call_wall,       "note": "Heavy Call Wall Resistance"},
+            {"type": "CE", "action": "SELL", "strike": call_wall,       "note": f"Live Call Wall ({call_wall} OI)"},
             {"type": "CE", "action": "BUY",  "strike": call_wall + 200, "note": "Upside Protection Wing"}
         ]
     elif active_strat_key == "BULL_PUT":
         strat_name = "Bull Put Credit Spread"
-        strat_reason = f"Spot is near {put_wall} Put Wall support. Defending downside support with hedged credit spread."
+        strat_reason = f"Live Put OI Wall at {put_wall} (PCR: {live_pcr:.2f}). Defending downside support with hedged credit spread."
         leg_specs = [
-            {"type": "PE", "action": "SELL", "strike": put_wall,       "note": "Heavy Put Wall Support"},
+            {"type": "PE", "action": "SELL", "strike": put_wall,       "note": f"Live Put Wall ({put_wall} OI)"},
             {"type": "PE", "action": "BUY",  "strike": put_wall - 200, "note": "Downside Protection Wing"}
         ]
     elif active_strat_key == "IRON_FLY":
         strat_name = "Short Iron Butterfly (ATM Pinning)"
-        strat_reason = f"High VIX ({live_vix:.2f}) & Max Pain at {atm_strike}. Capturing maximum ATM theta decay with 200-pt wings."
+        strat_reason = f"High VIX ({live_vix:.2f}) & Live Max Pain at {live_max_pain}. Capturing maximum ATM theta decay with 200-pt wings."
         leg_specs = [
             {"type": "PE", "action": "BUY",  "strike": atm_strike - 200, "note": "Downside Hedge Wing"},
             {"type": "PE", "action": "SELL", "strike": atm_strike,       "note": f"ATM Put Sell ({atm_strike} Pin)"},
@@ -514,16 +695,19 @@ else:
             {"type": "CE", "action": "BUY",  "strike": atm_strike + 200, "note": "Upside Hedge Wing"}
         ]
     else:
-        strat_name = "Short Iron Condor (OI-Synced)"
-        strat_reason = f"Max Pain at {simulated_max_pain} & PCR {simulated_pcr:.2f}. Operating safely inside {put_wall} - {call_wall} OI corridor."
+        # Ensure minimum 100-pt buffer on wings if OI wall is very close to ATM
+        safe_put_sell = min(put_wall, atm_strike - 100)
+        safe_call_sell = max(call_wall, atm_strike + 100)
+        strat_name = "Short Iron Condor (Live OI-Synced)"
+        strat_reason = f"Live Max Pain at {live_max_pain} & PCR {live_pcr:.2f}. Operating inside {safe_put_sell} - {safe_call_sell} OI walls."
         leg_specs = [
-            {"type": "PE", "action": "BUY",  "strike": put_wall - 200,  "note": "Put Wall Protection Wing"},
-            {"type": "PE", "action": "SELL", "strike": put_wall,        "note": f"Put Credit ({put_wall} Support)"},
-            {"type": "CE", "action": "SELL", "strike": call_wall,       "note": f"Call Credit ({call_wall} Resistance)"},
-            {"type": "CE", "action": "BUY",  "strike": call_wall + 200, "note": "Call Wall Protection Wing"}
+            {"type": "PE", "action": "BUY",  "strike": safe_put_sell - 200,  "note": "Put Wall Protection Wing"},
+            {"type": "PE", "action": "SELL", "strike": safe_put_sell,        "note": f"Put Credit ({safe_put_sell} OI Support)"},
+            {"type": "CE", "action": "SELL", "strike": safe_call_sell,       "note": f"Call Credit ({safe_call_sell} OI Resistance)"},
+            {"type": "CE", "action": "BUY",  "strike": safe_call_sell + 200, "note": "Call Wall Protection Wing"}
         ]
 
-    # --- 8. LTP FETCHER & LOT SIZE (65) ---
+    # --- 9. LTP FETCHER & LOT SIZE (65) ---
     verified_baseline_chain = {
         (24800, "PE"): 90.95, (25000, "PE"): 159.30, (25200, "CE"): 206.10, (25400, "CE"): 133.55
     }
@@ -556,10 +740,12 @@ else:
         if tok:
             tokens_to_fetch.append(tok)
 
-    live_ltp_map = {}
-    if tokens_to_fetch:
+    # Reuse already fetched LTPs from OI scan first, fetch any missing wing tokens
+    live_ltp_map = dict(oi_data.get("ltp_dict", {}))
+    missing_tokens = [t for t in tokens_to_fetch if t not in live_ltp_map or live_ltp_map[t] <= 0]
+    if missing_tokens:
         try:
-            mkt_res = smart_api.getMarketData("LTP", {"NFO": tokens_to_fetch})
+            mkt_res = smart_api.getMarketData("LTP", {"NFO": missing_tokens})
             if mkt_res and mkt_res.get("status") and "data" in mkt_res:
                 for item in mkt_res["data"].get("fetched", []):
                     live_ltp_map[str(item["symbolToken"])] = float(item["ltp"])
@@ -583,7 +769,7 @@ else:
             "note": spec["note"]
         })
 
-    # --- 9. RISK & PAYOFF COMPUTATION ---
+    # --- 10. RISK & PAYOFF COMPUTATION ---
     spot_range = np.linspace(live_spot - 800, live_spot + 800, 300)
     pnl = np.zeros_like(spot_range)
     net_credit = 0.0
@@ -608,46 +794,49 @@ else:
     rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
     # --- SECTION 1: INSTITUTIONAL ANALYTICS DASHBOARD ---
-    st.markdown("### 📊 Institutional OI & Sentiment Dashboard")
+    st.markdown(f"### 📊 Institutional OI & Sentiment Dashboard <span style='font-size:0.78rem; font-weight:500; color:#38bdf8;'>({oi_source_tag})</span>", unsafe_allow_html=True)
+    put_oi_str = f"OI: {oi_data['put_wall_oi']:,}" if oi_data["put_wall_oi"] > 0 else "Heavy Put OI Base"
+    call_oi_str = f"OI: {oi_data['call_wall_oi']:,}" if oi_data["call_wall_oi"] > 0 else "Heavy Call OI Wall"
+
     st.markdown(f"""
     <div class="analytics-grid">
         <div class="card">
             <div class="card-label">India VIX</div>
-            <div class="card-val" style="color:#f59e0b;">{live_vix:.2f}</div>
+            <div class="card-val" style="color:#f59e0b !important;">{live_vix:.2f}</div>
             <div class="card-sub">Volatility Index</div>
         </div>
         <div class="card">
             <div class="card-label">Live PCR Ratio</div>
-            <div class="card-val">{simulated_pcr:.2f}</div>
-            <div class="card-sub">Sentiment: Neutral / Bearish</div>
+            <div class="card-val">{live_pcr:.2f}</div>
+            <div class="card-sub">{pcr_sentiment}</div>
         </div>
         <div class="card">
             <div class="card-label">Max Pain Level</div>
-            <div class="card-val">₹{simulated_max_pain}</div>
+            <div class="card-val">₹{live_max_pain}</div>
             <div class="card-sub">Expiry Magnet Point</div>
         </div>
         <div class="card">
             <div class="card-label">Put Support Wall</div>
             <div class="card-val">₹{put_wall}</div>
-            <div class="card-sub">Heavy Put OI Base</div>
+            <div class="card-sub">{put_oi_str}</div>
         </div>
         <div class="card">
             <div class="card-label">Call Resistance Wall</div>
             <div class="card-val">₹{call_wall}</div>
-            <div class="card-sub">Heavy Call OI Wall</div>
+            <div class="card-sub">{call_oi_str}</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     # --- SECTION 2: QUANT STRATEGY & ENTRY CLOCK ---
     st.markdown(f"""
-    <div class="section-box" style="background:#1e293b; border-color:#334155;">
-        <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
-            <div>🤖 <b>Active Strategy: <span style="color:#38bdf8;">{strat_name} ({display_exp})</span></b></div>
-            <div>⏰ <b>Entry Clock: <span style="color:{sig_color};">{entry_signal}</span></b></div>
+    <div class="section-box" style="background:#1e293b !important; border-color:#334155 !important;">
+        <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:6px; color:#f8fafc !important;">
+            <div>🤖 <b style="color:#f8fafc !important;">Active Strategy: <span style="color:#38bdf8 !important;">{strat_name} ({display_exp})</span></b></div>
+            <div>⏰ <b style="color:#f8fafc !important;">Entry Clock: <span style="color:{sig_color} !important;">{entry_signal}</span></b></div>
         </div>
-        <div style="color:#cbd5e1; font-size:0.83rem; margin-bottom:4px;">💡 {strat_reason}</div>
-        <div style="color:#94a3b8; font-size:0.75rem;">Advice: {entry_advice}</div>
+        <div style="color:#e2e8f0 !important; font-size:0.83rem; margin-bottom:4px;">💡 {strat_reason}</div>
+        <div style="color:#94a3b8 !important; font-size:0.75rem;">Advice: {entry_advice}</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -658,11 +847,11 @@ else:
         st.markdown("#### 📋 Strategy Legs & Risk Metrics")
         st.markdown(f"""
         <div class="section-box" style="padding:10px;">
-            <div style="font-size:0.8rem; color:#94a3b8; margin-bottom:8px;">
-                <b>Win Probability:</b> {pop_percent:.1f}% &nbsp;|&nbsp; <b>Lot Size:</b> {LOT_SIZE}
+            <div style="font-size:0.8rem; color:#cbd5e1 !important; margin-bottom:8px;">
+                <b style="color:#f8fafc !important;">Win Probability:</b> {pop_percent:.1f}% &nbsp;|&nbsp; <b style="color:#f8fafc !important;">Lot Size:</b> {LOT_SIZE}
             </div>
-            <div style="font-size:0.8rem; color:#10b981; margin-bottom:4px;">🟢 Max Profit: <b>₹{max_profit_lot:,.0f}</b> (+{net_credit:.2f} pts)</div>
-            <div style="font-size:0.8rem; color:#ef4444; margin-bottom:8px;">🔴 Max Risk: <b>₹{max_loss_lot:,.0f}</b> (R:R = 1 : {1/rr_ratio:.2f})</div>
+            <div style="font-size:0.8rem; color:#10b981 !important; margin-bottom:4px;">🟢 Max Profit: <b style="color:#10b981 !important;">₹{max_profit_lot:,.0f}</b> (+{net_credit:.2f} pts)</div>
+            <div style="font-size:0.8rem; color:#ef4444 !important; margin-bottom:4px;">🔴 Max Risk: <b style="color:#ef4444 !important;">₹{max_loss_lot:,.0f}</b> (R:R = 1 : {1/rr_ratio:.2f})</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -670,9 +859,9 @@ else:
             badge_color = "#10b981" if leg["action"] == "BUY" else "#ef4444"
             badge_text = "🟢 BUY" if leg["action"] == "BUY" else "🔴 SELL"
             st.markdown(
-                f"<div class='leg-row' style='border-left-color:{badge_color}'>"
-                f"<div><b>Leg {idx}:</b> {badge_text} <code>{leg['readable']}</code><br/><span style='color:#94a3b8;font-size:0.75rem'>{leg['note']}</span></div>"
-                f"<div style='font-weight:700;color:#f8fafc; font-size:0.95rem;'>₹{leg['premium']:.2f}</div>"
+                f"<div class='leg-row' style='border-left-color:{badge_color};'>"
+                f"<div style='color:#f8fafc !important;'><b style='color:#f8fafc !important;'>Leg {idx}:</b> {badge_text} <code>{leg['readable']}</code><br/><span style='color:#94a3b8 !important;font-size:0.75rem'>{leg['note']}</span></div>"
+                f"<div style='font-weight:700;color:#f8fafc !important; font-size:0.95rem;'>₹{leg['premium']:.2f}</div>"
                 f"</div>",
                 unsafe_allow_html=True
             )
@@ -697,10 +886,20 @@ else:
                 "max_profit": float(max_profit_lot),
                 "max_loss": float(max_loss_lot),
                 "entry_spot": float(live_spot),
-                "time": ist_time_str
+                "time": ist_time_str,
+                "last_alert_state": "HOLD"
             }
             st.session_state.saved_strategies.append(strategy_payload)
             save_strategies_to_disk(st.session_state.saved_strategies)
+            if TG_BOT_TOKEN and TG_CHAT_ID:
+                legs_txt = "\n".join([f"• {l['action']} {l['readable']} @ ₹{l['premium']:.2f}" for l in display_legs])
+                send_telegram_alert(
+                    f"💾 <b>New Strategy Saved!</b>\n"
+                    f"<b>{strat_name} ({display_exp})</b>\n"
+                    f"Entry Spot: ₹{live_spot:,.2f}\n"
+                    f"{legs_txt}\n"
+                    f"Max Profit: ₹{max_profit_lot:,.0f} | Max Risk: ₹{max_loss_lot:,.0f}"
+                )
             st.success("✅ Strategy + Strike Prices permanently save ho gaye hain!")
             st.rerun()
 
