@@ -1,0 +1,215 @@
+import streamlit as st
+import pyotp
+from SmartApi import SmartConnect
+import datetime
+import requests
+import pandas as pd
+
+def send_telegram_alert(message_text):
+    tg_token = st.secrets.get("TELEGRAM_BOT_TOKEN", "")
+    tg_chat_id = st.secrets.get("TELEGRAM_CHAT_ID", "")
+    if not tg_token or not tg_chat_id:
+        return False
+    try:
+        url = f"https://api.telegram.org/bot{tg_token}/sendMessage"
+        payload = {"chat_id": tg_chat_id, "text": message_text, "parse_mode": "HTML"}
+        r = requests.post(url, json=payload, timeout=8)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+@st.cache_resource(ttl=1800, show_spinner=False)
+def get_angel_session(api_key, client_code, pwd, totp_sec):
+    try:
+        smart_api = SmartConnect(api_key)
+        totp = pyotp.TOTP(totp_sec).now()
+        session = smart_api.generateSession(client_code, pwd, totp)
+        if session.get("status"):
+            return smart_api
+        return None
+    except Exception:
+        return None
+
+@st.cache_data(ttl=43200, show_spinner=False)
+def load_angel_master_data():
+    url = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
+    r = requests.get(url, timeout=30)
+    data = r.json()
+    df = pd.DataFrame(data)
+    
+    idx_map = {
+        "NIFTY": "99926000",
+        "BANKNIFTY": "99926009",
+        "VIX": "99926017",
+        "SENSEX": "99919000"
+    }
+    
+    idx_df = df[df["instrumenttype"] == "AMXIDX"]
+    for _, row in idx_df.iterrows():
+        nm = str(row["name"]).upper().strip()
+        sym = str(row["symbol"]).upper().strip()
+        tok = str(row["token"]).strip()
+        if nm == "INDIA VIX" or sym == "INDIA VIX":
+            idx_map["VIX"] = tok
+        elif (nm == "SENSEX" or sym == "SENSEX") and str(row["exch_seg"]) == "BSE":
+            idx_map["SENSEX"] = tok
+
+    opt_df = df[(df["exch_seg"] == "NFO") & (df["name"] == "NIFTY") & (df["instrumenttype"] == "OPTIDX")].copy()
+    opt_df["strike_int"] = (pd.to_numeric(opt_df["strike"], errors="coerce") / 100).round().astype(int)
+    opt_df["lotsize_int"] = pd.to_numeric(opt_df["lotsize"], errors="coerce").fillna(65).astype(int)
+    opt_df["opt_type"] = opt_df["symbol"].str[-2:]
+    opt_df["expiry_dt"] = pd.to_datetime(opt_df["expiry"], format="%d%b%Y", errors="coerce").dt.date
+    return opt_df[["token", "symbol", "expiry", "expiry_dt", "strike_int", "opt_type", "lotsize_int"]], idx_map
+
+@st.cache_data(ttl=60, show_spinner=False)
+def get_daily_ohlc_cached(_smart_api, idx_tokens):
+    ohlc = {
+        "nifty": {"open": 25213.50, "high": 25384.80, "low": 25142.95, "close": 25255.05},
+        "banknifty": {"open": 60801.85, "high": 61406.35, "low": 60723.10, "close": 60792.40},
+        "sensex": {"open": 81762.27, "high": 82325.61, "low": 81576.15, "close": 81879.40}
+    }
+    to_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    from_date = datetime.datetime.now().strftime("%Y-%m-%d 09:00")
+    for idx_key, tok_val, exch in [
+        ("nifty", idx_tokens["NIFTY"], "NSE"),
+        ("banknifty", idx_tokens["BANKNIFTY"], "NSE"),
+        ("sensex", idx_tokens["SENSEX"], "BSE")
+    ]:
+        try:
+            candle_req = {
+                "exchange": exch,
+                "symboltoken": tok_val,
+                "interval": "ONE_DAY",
+                "fromdate": from_date,
+                "todate": to_date
+            }
+            c_res = _smart_api.getCandleData(candle_req)
+            if c_res and c_res.get("status") and "data" in c_res and len(c_res["data"]) > 0:
+                latest_candle = c_res["data"][-1]
+                ohlc[idx_key] = {
+                    "open": float(latest_candle[1]),
+                    "high": float(latest_candle[2]),
+                    "low": float(latest_candle[3]),
+                    "close": float(latest_candle[4])
+                }
+        except Exception:
+            pass
+    return ohlc
+
+@st.cache_data(ttl=5, show_spinner=False)
+def get_comprehensive_indices(_smart_api, idx_tokens):
+    ohlc_data = get_daily_ohlc_cached(_smart_api, idx_tokens)
+    out = {
+        "nifty": {"ltp": 25243.30, **ohlc_data["nifty"]},
+        "banknifty": {"ltp": 61281.05, **ohlc_data["banknifty"]},
+        "sensex": {"ltp": 81871.62, **ohlc_data["sensex"]},
+        "vix": 16.88
+    }
+    try:
+        t_nifty, t_bnf, t_vix, t_snx = idx_tokens["NIFTY"], idx_tokens["BANKNIFTY"], idx_tokens["VIX"], idx_tokens["SENSEX"]
+        res_nse = _smart_api.getMarketData("LTP", {"NSE": [t_nifty, t_bnf, t_vix]})
+        if res_nse and res_nse.get("status") and "data" in res_nse:
+            for item in res_nse["data"].get("fetched", []):
+                tok = str(item["symbolToken"])
+                ltp = float(item["ltp"])
+                if tok == t_nifty and ltp > 10000:
+                    out["nifty"]["ltp"] = ltp
+                elif tok == t_bnf and ltp > 25000:
+                    out["banknifty"]["ltp"] = ltp
+                elif tok == t_vix and ltp > 0:
+                    out["vix"] = ltp
+
+        res_bse = _smart_api.getMarketData("LTP", {"BSE": [t_snx]})
+        if res_bse and res_bse.get("status") and "data" in res_bse:
+            for item in res_bse["data"].get("fetched", []):
+                if str(item["symbolToken"]) == t_snx:
+                    out["sensex"]["ltp"] = float(item["ltp"])
+    except Exception:
+        pass
+    return out
+
+@st.cache_data(ttl=15, show_spinner=False)
+def get_live_option_chain_oi(_smart_api, nfo_df, exp_date_str, atm_val):
+    fallback = {
+        "pcr": 0.92, "max_pain": atm_val,
+        "call_wall": atm_val + 150, "put_wall": atm_val - 150,
+        "call_wall_oi": 0, "put_wall_oi": 0,
+        "is_live": False, "ltp_dict": {}
+    }
+    try:
+        exp_dt_obj = datetime.date.fromisoformat(exp_date_str)
+        sub_df = nfo_df[nfo_df["expiry_dt"] == exp_dt_obj]
+        if sub_df.empty:
+            return fallback
+
+        strikes_scan = [atm_val + i * 50 for i in range(-8, 9)]
+        scan_df = sub_df[sub_df["strike_int"].isin(strikes_scan)]
+        tokens = scan_df["token"].astype(str).tolist()
+        if not tokens:
+            return fallback
+
+        res_full = _smart_api.getMarketData("FULL", {"NFO": tokens})
+        if not (res_full and res_full.get("status") and "data" in res_full):
+            return fallback
+
+        fetched = res_full["data"].get("fetched", [])
+        if not fetched:
+            return fallback
+
+        tok_meta = {str(r["token"]): (int(r["strike_int"]), str(r["opt_type"])) for _, r in scan_df.iterrows()}
+        ce_oi_map, pe_oi_map, ltp_dict = {}, {}, {}
+
+        for item in fetched:
+            tok = str(item.get("symbolToken", ""))
+            if tok in tok_meta:
+                st_k, o_type = tok_meta[tok]
+                oi_val = float(item.get("opnInterest", 0))
+                ltp_dict[tok] = float(item.get("ltp", 0))
+                if o_type == "CE":
+                    ce_oi_map[st_k] = oi_val
+                elif o_type == "PE":
+                    pe_oi_map[st_k] = oi_val
+
+        tot_ce_oi, tot_pe_oi = sum(ce_oi_map.values()), sum(pe_oi_map.values())
+        if tot_ce_oi <= 0 or tot_pe_oi <= 0:
+            fallback["ltp_dict"] = ltp_dict
+            return fallback
+
+        pcr_live = round(tot_pe_oi / tot_ce_oi, 2)
+        otm_ce = {k: v for k, v in ce_oi_map.items() if k >= atm_val}
+        call_wall_k = max(otm_ce, key=otm_ce.get) if otm_ce else max(ce_oi_map, key=ce_oi_map.get)
+
+        otm_pe = {k: v for k, v in pe_oi_map.items() if k <= atm_val}
+        put_wall_k = max(otm_pe, key=otm_pe.get) if otm_pe else max(pe_oi_map, key=pe_oi_map.get)
+
+        min_pain_val = float("inf")
+        max_pain_k = atm_val
+        for candidate_spot in strikes_scan:
+            pain = sum((candidate_spot - k_c) * oi_c for k_c, oi_c in ce_oi_map.items() if candidate_spot > k_c)
+            pain += sum((k_p - candidate_spot) * oi_p for k_p, oi_p in pe_oi_map.items() if candidate_spot < k_p)
+            if pain < min_pain_val:
+                min_pain_val = pain
+                max_pain_k = candidate_spot
+
+        return {
+            "pcr": pcr_live, "max_pain": max_pain_k,
+            "call_wall": call_wall_k, "put_wall": put_wall_k,
+            "call_wall_oi": int(ce_oi_map.get(call_wall_k, 0)),
+            "put_wall_oi": int(pe_oi_map.get(put_wall_k, 0)),
+            "is_live": True, "ltp_dict": ltp_dict
+        }
+    except Exception:
+        return fallback
+
+def fetch_batch_ltps(smart_api, tokens):
+    ltp_map = {}
+    if not tokens:
+        return ltp_map
+    try:
+        res = smart_api.getMarketData("LTP", {"NFO": list(set(tokens))})
+        if res and res.get("status") and "data" in res:
+            for item in res["data"].get("fetched", []):
+                ltp_map[str(item["symbolToken"])] = float(item["ltp"])
+    except Exception:
+        pass
+    return ltp_map
