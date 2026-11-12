@@ -14,71 +14,90 @@ from streamlit_autorefresh import st_autorefresh
 
 st.set_page_config(page_title="Nifty Institutional Analytics Terminal", layout="wide", initial_sidebar_state="collapsed")
 
-# --- PROFESSIONAL TRADING TERMINAL STYLING (LIGHT & DARK MODE CONTRAST LOCKED) ---
+# --- INSTITUTIONAL TRADING DESK STYLING (CLEAN, ORGANIZED & HIGH-CONTRAST) ---
 st.markdown("""
 <style>
     .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 2rem !important;
-        padding-left: 1.2rem !important;
-        padding-right: 1.2rem !important;
+        padding-top: 0.75rem !important;
+        padding-bottom: 1.5rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
         max-width: 100% !important;
     }
     header[data-testid="stHeader"] { display: none !important; }
     [data-stale="true"] { opacity: 1 !important; transition: none !important; }
     div[data-testid="stStatusWidget"] { display: none !important; }
+
+    /* Top Index Tickers */
+    .index-ticker {
+        background: #111827 !important;
+        border: 1px solid #1f2937 !important;
+        border-radius: 8px;
+        padding: 8px 10px;
+        text-align: center;
+        color: #f8fafc !important;
+        margin-bottom: 6px;
+    }
+
+    /* 5-Card OI & Sentiment Strip */
     .analytics-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 10px;
-        margin-bottom: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
     }
     .card {
         background: #111827 !important;
         border: 1px solid #1f2937 !important;
         border-radius: 8px;
-        padding: 10px 12px;
+        padding: 9px 11px;
         color: #f8fafc !important;
     }
     .card-label {
-        font-size: 0.72rem;
+        font-size: 0.70rem;
         color: #94a3b8 !important;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        margin-bottom: 3px;
+        margin-bottom: 2px;
     }
     .card-val {
-        font-size: 1.15rem;
+        font-size: 1.12rem;
         font-weight: 700;
         color: #f8fafc !important;
         white-space: nowrap;
     }
     .card-sub {
-        font-size: 0.72rem;
+        font-size: 0.70rem;
         color: #38bdf8 !important;
-        margin-top: 3px;
+        margin-top: 2px;
     }
+
+    /* Unified Section Boxes */
     .section-box {
         background: #111827 !important;
         border: 1px solid #1f2937 !important;
         border-radius: 8px;
-        padding: 14px;
-        margin-bottom: 12px;
+        padding: 12px 14px;
+        margin-bottom: 10px;
         color: #f8fafc !important;
     }
     .section-box b, .section-box div, .section-box span {
         color: inherit;
     }
+
+    /* Strategy Leg Rows */
     .leg-row {
         background: #0b0f19 !important;
         border-left: 4px solid #38bdf8;
-        padding: 8px 12px;
+        padding: 8px 11px;
         margin-bottom: 6px;
         border-radius: 6px;
-        font-size: 0.88rem;
+        font-size: 0.86rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex-wrap: wrap;
+        gap: 4px;
         color: #f8fafc !important;
     }
     .leg-row b {
@@ -92,13 +111,19 @@ st.markdown("""
         font-weight: 600 !important;
         border: 1px solid #334155 !important;
     }
-    .index-ticker {
-        background: #111827 !important;
+
+    /* Compact Risk Strip inside Execution Box */
+    .risk-strip {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 8px;
+        background: #0b0f19 !important;
         border: 1px solid #1f2937 !important;
         border-radius: 6px;
-        padding: 8px;
-        text-align: center;
-        color: #f8fafc !important;
+        padding: 8px 12px;
+        margin-bottom: 10px;
+        font-size: 0.82rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -411,7 +436,9 @@ else:
     entry_advice = "Closing Gamma Move! Avoid New Positions"
     sig_color = "#f97316"
 
-# --- 6. EXPIRY SELECTOR & TOP TICKER (OHLC) ---
+# ==============================================================================
+# ZONE 1: TOP MARKET TICKER BAR (NIFTY, BANKNIFTY, SENSEX)
+# ==============================================================================
 today_date = ist_now.date()
 valid_expiries = sorted([d for d in nfo_df["expiry_dt"].dropna().unique() if d >= today_date])
 if not valid_expiries:
@@ -425,60 +452,69 @@ with t1:
     nf = market_data["nifty"]
     st.markdown(f"""
     <div class="index-ticker">
-        <div style="font-weight:700; color:#38bdf8; font-size:0.9rem;">NIFTY 50: ₹{nf['ltp']:,.2f}</div>
-        <div style="font-size:0.7rem; color:#94a3b8;">O: {nf['open']:,.1f} | H: {nf['high']:,.1f} | L: {nf['low']:,.1f} | C: {nf['close']:,.1f}</div>
+        <div style="font-weight:700; color:#38bdf8; font-size:0.92rem;">NIFTY 50: ₹{nf['ltp']:,.2f}</div>
+        <div style="font-size:0.70rem; color:#94a3b8;">O: {nf['open']:,.1f} | H: {nf['high']:,.1f} | L: {nf['low']:,.1f} | C: {nf['close']:,.1f}</div>
     </div>
     """, unsafe_allow_html=True)
 with t2:
     bn = market_data["banknifty"]
     st.markdown(f"""
     <div class="index-ticker">
-        <div style="font-weight:700; color:#38bdf8; font-size:0.9rem;">BANKNIFTY: ₹{bn['ltp']:,.2f}</div>
-        <div style="font-size:0.7rem; color:#94a3b8;">O: {bn['open']:,.1f} | H: {bn['high']:,.1f} | L: {bn['low']:,.1f} | C: {bn['close']:,.1f}</div>
+        <div style="font-weight:700; color:#38bdf8; font-size:0.92rem;">BANKNIFTY: ₹{bn['ltp']:,.2f}</div>
+        <div style="font-size:0.70rem; color:#94a3b8;">O: {bn['open']:,.1f} | H: {bn['high']:,.1f} | L: {bn['low']:,.1f} | C: {bn['close']:,.1f}</div>
     </div>
     """, unsafe_allow_html=True)
 with t3:
     sx = market_data["sensex"]
     st.markdown(f"""
     <div class="index-ticker">
-        <div style="font-weight:700; color:#38bdf8; font-size:0.9rem;">SENSEX: ₹{sx['ltp']:,.2f}</div>
-        <div style="font-size:0.7rem; color:#94a3b8;">O: {sx['open']:,.1f} | H: {sx['high']:,.1f} | L: {sx['low']:,.1f} | C: {sx['close']:,.1f}</div>
+        <div style="font-weight:700; color:#38bdf8; font-size:0.92rem;">SENSEX: ₹{sx['ltp']:,.2f}</div>
+        <div style="font-size:0.70rem; color:#94a3b8;">O: {sx['open']:,.1f} | H: {sx['high']:,.1f} | L: {sx['low']:,.1f} | C: {sx['close']:,.1f}</div>
     </div>
     """, unsafe_allow_html=True)
 
-st.markdown("---")
-
-# --- NAVIGATION & AUTO REFRESH (LOCKED TAB KEYS) ---
-nav_col1, nav_col2 = st.columns([3, 1])
+# ==============================================================================
+# ZONE 2: COMMAND NAVIGATION BAR (WORKSPACE SWITCHER + CLOCK + SYNC)
+# ==============================================================================
+nav_col1, nav_col2, nav_col3 = st.columns([2.4, 1.4, 1.0])
 with nav_col1:
     nav_mode = st.radio(
-        "Mode",
+        "Workspace",
         ["⚡ Quant Terminal", "🛡️ Saved Live Tracker"],
         horizontal=True,
         label_visibility="collapsed",
         key="main_nav_mode"
     )
 with nav_col2:
+    st.markdown(
+        f"<div style='text-align:right; font-size:0.80rem; color:#64748b; padding-top:4px;'>"
+        f"🕒 <b>{ist_time_str}</b> &nbsp;|&nbsp; Active: <b>{len(st.session_state.saved_strategies)}</b>"
+        f"</div>",
+        unsafe_allow_html=True
+    )
+with nav_col3:
     auto_refresh_on = st.toggle("Sync (10s)", value=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=10 * 1000, key="terminal_refresh_final_v6")
+    st_autorefresh(interval=10 * 1000, key="terminal_refresh_organized_v7")
+
+st.markdown("<hr style='margin: 6px 0 12px 0; border-color: #1f2937;'>", unsafe_allow_html=True)
 
 # ==============================================================================
-# MODE 2: SAVED LIVE TRACKER (EXIT REPORT + EDIT STRIKES + FLASH POPUPS)
+# WORKSPACE A: SAVED LIVE TRACKER (ORGANIZED PORTFOLIO & EXECUTION DESK)
 # ==============================================================================
 if nav_mode == "🛡️ Saved Live Tracker":
-    st.markdown(f"### 🛡️ Live Saved Strategies & Strike Tracker ({len(st.session_state.saved_strategies)})")
-    
-    tg_col1, tg_col2 = st.columns([3.5, 1.5])
-    with tg_col1:
+    head_l, head_r = st.columns([3.5, 1.5])
+    with head_l:
+        st.markdown(f"### 🛡️ Live Trade Tracker & P&L Desk ({len(st.session_state.saved_strategies)} Active)")
         if TG_BOT_TOKEN and TG_CHAT_ID:
-            st.caption("📲 **Telegram Live Alerts: ACTIVE** (Target Hit, Stop-Loss aur Trade Exit report Telegram par jayegi)")
+            st.caption("📲 **Telegram Alerts: ACTIVE** — Profit Target (65%), Stop-Loss aur Trade Exit Reports connected.")
         else:
-            st.caption("🔕 **Telegram Alerts: OFF** (Streamlit Secrets mein `TELEGRAM_BOT_TOKEN` aur `TELEGRAM_CHAT_ID` jodein)")
-    with tg_col2:
+            st.caption("🔕 **Telegram Alerts: OFF** — Secrets mein `TELEGRAM_BOT_TOKEN` aur `TELEGRAM_CHAT_ID` jodein.")
+    with head_r:
         if TG_BOT_TOKEN and TG_CHAT_ID:
-            if st.button("🔔 Send Test Alert", key="test_tg_btn"):
+            st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
+            if st.button("🔔 Send Test Alert", key="test_tg_btn", use_container_width=True):
                 ok = send_telegram_alert(f"✅ <b>Quant Terminal Connected!</b>\nNifty Spot: ₹{live_spot:,.2f}\nTime: {ist_time_str}")
                 if ok:
                     st.toast("✅ Telegram par Test Alert bhej diya gaya hai!")
@@ -486,7 +522,7 @@ if nav_mode == "🛡️ Saved Live Tracker":
                     st.toast("❌ Telegram message fail hua. Token/Chat ID check karein.")
 
     if not st.session_state.saved_strategies:
-        st.info("ℹ️ Koi bhi strategy save nahi ki gayi hai. 'Quant Terminal' mein jaakar 'Save Strategy' par click karein.")
+        st.info("ℹ️ Abhi koi active trade track nahi ho raha hai. '⚡ Quant Terminal' par jakar apni strategy save karein.")
     else:
         all_saved_tokens = []
         for s in st.session_state.saved_strategies:
@@ -506,9 +542,7 @@ if nav_mode == "🛡️ Saved Live Tracker":
 
         state_changed = False
         for idx, strat in enumerate(st.session_state.saved_strategies[:]):
-            col_info, col_actions = st.columns([5.2, 1.3])
             lot_qty = strat.get("lot_size", 65)
-            
             running_pnl_pts = 0.0
             leg_html_rows = ""
             exit_leg_summary_lines = []
@@ -530,9 +564,9 @@ if nav_mode == "🛡️ Saved Live Tracker":
                 pnl_sign = "+" if leg_pnl_rs >= 0 else ""
                 
                 leg_html_rows += (
-                    f"<div class='leg-row' style='border-left-color:{b_col}; margin-bottom:4px; padding:6px 10px;'>"
+                    f"<div class='leg-row' style='border-left-color:{b_col}; margin-bottom:5px;'>"
                     f"<div><b>Leg {l_idx}:</b> {b_txt} <code>{leg['readable']}</code></div>"
-                    f"<div style='font-size:0.82rem; color:#e2e8f0;'>"
+                    f"<div style='font-size:0.83rem; color:#e2e8f0;'>"
                     f"Entry: <b>₹{entry_p:.2f}</b> &rarr; Live: <b>₹{curr_p:.2f}</b> &nbsp;|&nbsp; "
                     f"<span style='color:{pnl_col}; font-weight:700;'>{pnl_sign}₹{leg_pnl_rs:,.0f}</span>"
                     f"</div></div>"
@@ -544,40 +578,82 @@ if nav_mode == "🛡️ Saved Live Tracker":
             total_running_pnl = running_pnl_pts * lot_qty
             tot_col = "#10b981" if total_running_pnl >= 0 else "#ef4444"
             tot_sign = "+" if total_running_pnl >= 0 else ""
+            price_drift = live_spot - strat['entry_spot']
+            max_p = max(strat.get('max_profit', 1), 1)
+            max_l = max(strat.get('max_loss', 1), 1)
+            last_alert = strat.get("last_alert_state", "HOLD")
 
-            with col_info:
-                st.markdown(f"""
-                <div class="section-box" style="margin-bottom: 6px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
-                        <div style="color:#f8fafc;"><b>#{idx+1} - {strat['name']}</b> ({strat['expiry']}) <span style="color:#94a3b8; font-size:0.75rem;">| Saved at {strat.get('time', '')}</span></div>
-                        <div style="font-size: 0.85rem; color:#e2e8f0;">
-                            Entry Spot: <b style="color:#38bdf8;">₹{strat['entry_spot']:,.2f}</b> &nbsp;|&nbsp; 
-                            Live Spot: <b style="color:#f59e0b;">₹{live_spot:,.2f}</b>
-                        </div>
+            # Live Status Badge inside Card
+            if total_running_pnl >= 0.65 * max_p:
+                status_banner = "🟣 <b>STATUS: TARGET HIT (BOOK PROFIT)</b> — 65%+ Max Profit target achieved!"
+                status_bg = "#3b0764"
+                if last_alert != "TARGET_HIT":
+                    msg = (
+                        f"🟣 <b>TARGET HIT — BOOK PROFIT!</b>\n"
+                        f"Strategy: <b>{strat['name']} ({strat['expiry']})</b>\n"
+                        f"Live P&L: <b>+₹{total_running_pnl:,.0f}</b> (Target 65%+ Reached)\n"
+                        f"Nifty Spot: ₹{live_spot:,.2f} | Time: {ist_time_str}"
+                    )
+                    if send_telegram_alert(msg):
+                        st.session_state.saved_strategies[idx]["last_alert_state"] = "TARGET_HIT"
+                        state_changed = True
+            elif total_running_pnl <= -0.50 * max_l or abs(price_drift) >= 160:
+                status_banner = "🔴 <b>STATUS: STOP-LOSS / EXIT ALERT</b> — Market range breach ya risk limit hit!"
+                status_bg = "#450a0a"
+                if last_alert != "SL_HIT":
+                    msg = (
+                        f"🔴 <b>STOP-LOSS / EXIT ALERT!</b>\n"
+                        f"Strategy: <b>{strat['name']} ({strat['expiry']})</b>\n"
+                        f"Live P&L: <b>{tot_sign}₹{total_running_pnl:,.0f}</b>\n"
+                        f"Spot Drift: {price_drift:+.1f} pts | Nifty: ₹{live_spot:,.2f}"
+                    )
+                    if send_telegram_alert(msg):
+                        st.session_state.saved_strategies[idx]["last_alert_state"] = "SL_HIT"
+                        state_changed = True
+            elif abs(price_drift) < 70:
+                status_banner = "🟢 <b>STATUS: TIKE RAHO (HOLD)</b> — Market safe corridor mein hai, Theta decay chal raha hai."
+                status_bg = "#064e3b"
+            else:
+                status_banner = f"🟡 <b>STATUS: MONITOR CLOSELY</b> — Spot Drift: {price_drift:+.1f} pts. Breakevens par nazar rakhein."
+                status_bg = "#422006"
+
+            # Main Strategy Card
+            st.markdown(f"""
+            <div class="section-box" style="margin-bottom: 6px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+                    <div style="color:#f8fafc; font-size:0.95rem;">
+                        <b>#{idx+1} • {strat['name']}</b> <span style="color:#38bdf8;">({strat['expiry']})</span> 
+                        <span style="color:#94a3b8; font-size:0.75rem;">| Saved: {strat.get('time', '')}</span>
                     </div>
-                    <hr style="border-color:#1f2937; margin:8px 0;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                        <div style="font-size:0.83rem; color:#cbd5e1;">
-                            Max Profit: <b style="color:#10b981;">₹{strat['max_profit']:,.0f}</b> &nbsp;|&nbsp; 
-                            Max Risk: <b style="color:#ef4444;">₹{strat['max_loss']:,.0f}</b>
-                        </div>
-                        <div style="font-size:0.95rem; font-weight:700; color:{tot_col};">
-                            Live P&L: {tot_sign}₹{total_running_pnl:,.0f}
-                        </div>
+                    <div style="font-size:0.85rem; color:#e2e8f0;">
+                        Entry Spot: <b style="color:#38bdf8;">₹{strat['entry_spot']:,.2f}</b> &nbsp;|&nbsp; 
+                        Live Spot: <b style="color:#f59e0b;">₹{live_spot:,.2f}</b> ({price_drift:+.1f})
                     </div>
-                    {leg_html_rows}
                 </div>
-                """, unsafe_allow_html=True)
+                <div class="risk-strip" style="margin-top:8px;">
+                    <div>Max Profit: <b style="color:#10b981;">₹{strat['max_profit']:,.0f}</b></div>
+                    <div>Max Risk: <b style="color:#ef4444;">₹{strat['max_loss']:,.0f}</b></div>
+                    <div>Lot Qty: <b>{lot_qty}</b></div>
+                    <div style="font-size:0.92rem;">Running P&L: <b style="color:{tot_col};">{tot_sign}₹{total_running_pnl:,.0f}</b> ({running_pnl_pts:+.2f} pts)</div>
+                </div>
+                {leg_html_rows}
+                <div style="background:{status_bg}; padding:7px 12px; border-radius:6px; font-size:0.82rem; margin-top:6px; color:#f8fafc;">
+                    {status_banner}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-                # --- MANUAL STRIKE & ENTRY PRICE EDITOR ---
-                with st.expander(f"✏️ Edit Strikes & Entry Prices — #{idx+1} {strat['name']}", expanded=False):
+            # Neatly Aligned Action Toolbar Below Card (Edit | Exit | Delete)
+            act_col1, act_col2, act_col3 = st.columns([3.4, 1.3, 1.3])
+            with act_col1:
+                with st.expander(f"✏️ Edit Strikes & Entry Prices (#{idx+1})", expanded=False):
                     edit_cols = st.columns(len(strat.get("legs", [])))
                     updated_legs_data = []
                     for l_i, leg in enumerate(strat.get("legs", [])):
                         with edit_cols[l_i]:
                             st.markdown(f"**Leg {l_i+1}: {leg['action']} {leg['type']}**")
                             new_strike = st.number_input(
-                                "Strike Price",
+                                "Strike",
                                 min_value=15000,
                                 max_value=35000,
                                 value=int(leg["strike"]),
@@ -585,7 +661,7 @@ if nav_mode == "🛡️ Saved Live Tracker":
                                 key=f"edit_strike_{idx}_{l_i}"
                             )
                             new_prem = st.number_input(
-                                "Entry Price (₹)",
+                                "Entry (₹)",
                                 min_value=0.05,
                                 value=float(leg["premium"]),
                                 step=0.05,
@@ -594,7 +670,7 @@ if nav_mode == "🛡️ Saved Live Tracker":
                             )
                             updated_legs_data.append((new_strike, new_prem))
                     
-                    if st.button("💾 Save Updated Strikes & Prices", key=f"save_edit_btn_{idx}"):
+                    if st.button("💾 Save Changes", key=f"save_edit_btn_{idx}", use_container_width=True):
                         exp_str = strat["expiry"]
                         for l_i, (n_strike, n_prem) in enumerate(updated_legs_data):
                             old_leg = st.session_state.saved_strategies[idx]["legs"][l_i]
@@ -615,10 +691,8 @@ if nav_mode == "🛡️ Saved Live Tracker":
                         save_strategies_to_disk(st.session_state.saved_strategies)
                         st.session_state.flash_msg = "✅ Updated Strikes & Entry Prices Saved!"
                         st.rerun()
-            
-            with col_actions:
-                st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
-                # 1. EXIT BUTTON (CALCULATES FINAL P&L + SENDS TELEGRAM REPORT)
+
+            with act_col2:
                 if st.button("🚪 Exit Trade", key=f"exit_strat_{idx}", use_container_width=True):
                     result_badge = "🟢 PROFIT BOOKED" if total_running_pnl >= 0 else "🔴 LOSS BOOKED"
                     legs_report = "\n".join(exit_leg_summary_lines)
@@ -634,65 +708,30 @@ if nav_mode == "🛡️ Saved Live Tracker":
                     send_telegram_alert(exit_msg)
                     st.session_state.saved_strategies.pop(idx)
                     save_strategies_to_disk(st.session_state.saved_strategies)
-                    st.session_state.flash_msg = f"🚪 Trade Exited ({tot_sign}₹{total_running_pnl:,.0f}) & Sent to Telegram!"
+                    st.session_state.flash_msg = f"🚪 Trade Exited ({tot_sign}₹{total_running_pnl:,.0f}) & Report Sent!"
                     st.rerun()
 
-                # 2. DELETE BUTTON
+            with act_col3:
                 if st.button("🗑️ Delete", key=f"del_strat_{idx}", use_container_width=True):
                     st.session_state.saved_strategies.pop(idx)
                     save_strategies_to_disk(st.session_state.saved_strategies)
                     st.session_state.flash_msg = "🗑️ Strategy Deleted!"
                     st.rerun()
 
-            # Live Decision Engine + Anti-Spam Telegram Trigger
-            price_drift = live_spot - strat['entry_spot']
-            max_p = max(strat.get('max_profit', 1), 1)
-            max_l = max(strat.get('max_loss', 1), 1)
-            last_alert = strat.get("last_alert_state", "HOLD")
-
-            if total_running_pnl >= 0.65 * max_p:
-                st.markdown("🟣 **STATUS: TARGET HIT (BOOK PROFIT)** — Aapke Max Profit ka 65%+ target aa chuka hai! Lalach mat karein, position close karke profit book karein.")
-                if last_alert != "TARGET_HIT":
-                    msg = (
-                        f"🟣 <b>TARGET HIT — BOOK PROFIT!</b>\n"
-                        f"Strategy: <b>{strat['name']} ({strat['expiry']})</b>\n"
-                        f"Live P&L: <b>+₹{total_running_pnl:,.0f}</b> (Target 65%+ Reached)\n"
-                        f"Nifty Spot: ₹{live_spot:,.2f} | Time: {ist_time_str}"
-                    )
-                    if send_telegram_alert(msg):
-                        st.session_state.saved_strategies[idx]["last_alert_state"] = "TARGET_HIT"
-                        state_changed = True
-            elif total_running_pnl <= -0.50 * max_l or abs(price_drift) >= 160:
-                st.markdown("🔴 **STATUS: EXIT / STOP-LOSS ALERT** — Market aapki safe range tod rahi hai ya risk badh gaya hai. Turant position adjust ya exit karein!")
-                if last_alert != "SL_HIT":
-                    msg = (
-                        f"🔴 <b>STOP-LOSS / EXIT ALERT!</b>\n"
-                        f"Strategy: <b>{strat['name']} ({strat['expiry']})</b>\n"
-                        f"Live P&L: <b>{tot_sign}₹{total_running_pnl:,.0f}</b>\n"
-                        f"Spot Drift: {price_drift:+.1f} pts | Nifty: ₹{live_spot:,.2f}"
-                    )
-                    if send_telegram_alert(msg):
-                        st.session_state.saved_strategies[idx]["last_alert_state"] = "SL_HIT"
-                        state_changed = True
-            elif abs(price_drift) < 70:
-                st.markdown("🟢 **STATUS: TIKE RAHO (HOLD)** — Market abhi aapke entry zone ke paas safe corridor mein hai. Theta decay ka fayda uthayein.")
-            else:
-                st.markdown(f"🟡 **STATUS: MONITOR CLOSELY** — Market mein movement badh rahi hai (Spot Drift: {price_drift:+.1f} pts). Apne breakeven levels par nazar rakhein.")
-            st.markdown("---")
+            st.markdown("<hr style='margin: 10px 0 14px 0; border-color: #1f2937;'>", unsafe_allow_html=True)
 
         if state_changed:
             save_strategies_to_disk(st.session_state.saved_strategies)
 
 # ==============================================================================
-# MODE 1: QUANT TERMINAL (REAL-TIME OPTION CHAIN OI + MULTI-STRATEGY)
+# WORKSPACE B: QUANT TERMINAL (STRUCTURED ANALYTICS + EXECUTION DESK)
 # ==============================================================================
 else:
-    c_head1, c_head2, c_head3 = st.columns([1.2, 2.0, 1.5])
-    with c_head1:
-        st.markdown("### ⚡ Quant Terminal")
-    with c_head2:
+    # --- CONTROL BAR: EXPIRY & STRATEGY SELECTOR ---
+    ctrl_l, ctrl_r = st.columns([2.2, 1.5])
+    with ctrl_l:
         selected_label = st.radio("Expiry", expiry_labels, horizontal=True, label_visibility="collapsed")
-    with c_head3:
+    with ctrl_r:
         strat_mode_choice = st.selectbox(
             "Strategy Mode",
             [
@@ -710,7 +749,7 @@ else:
     dte_days = max((chosen_exp_date - today_date).days, 1)
     display_exp = chosen_exp_date.strftime("%d-%b")
 
-    # --- 7. FETCH REAL-TIME OPTION CHAIN OI DATA ---
+    # --- FETCH REAL-TIME OPTION CHAIN OI DATA ---
     oi_data = get_live_option_chain_oi(chosen_exp_date.isoformat(), atm_strike)
     live_pcr = oi_data["pcr"]
     live_max_pain = oi_data["max_pain"]
@@ -719,13 +758,13 @@ else:
     oi_source_tag = "🟢 Live Option Chain OI" if oi_data["is_live"] else "🟡 Estimated OI"
 
     if live_pcr >= 1.15:
-        pcr_sentiment = "Bullish (Strong Put Writing)"
+        pcr_sentiment = "Bullish (Put Writing)"
     elif live_pcr <= 0.75:
-        pcr_sentiment = "Bearish (Heavy Call Writing)"
+        pcr_sentiment = "Bearish (Call Writing)"
     else:
         pcr_sentiment = "Neutral / Rangebound"
 
-    # --- 8. MULTI-STRATEGY ENGINE (POWERED BY LIVE OI WALLS) ---
+    # --- MULTI-STRATEGY ENGINE ---
     if "AI Auto-Select" in strat_mode_choice:
         if live_spot >= call_wall - 35 or live_pcr <= 0.72:
             active_strat_key = "BEAR_CALL"
@@ -779,7 +818,7 @@ else:
             {"type": "CE", "action": "BUY",  "strike": safe_call_sell + 200, "note": "Call Wall Protection Wing"}
         ]
 
-    # --- 9. LTP FETCHER & LOT SIZE (65) ---
+    # --- LTP FETCHER & LOT SIZE ---
     verified_baseline_chain = {
         (24800, "PE"): 90.95, (25000, "PE"): 159.30, (25200, "CE"): 206.10, (25400, "CE"): 133.55
     }
@@ -840,7 +879,7 @@ else:
             "note": spec["note"]
         })
 
-    # --- 10. RISK & PAYOFF COMPUTATION ---
+    # --- RISK & PAYOFF COMPUTATION ---
     spot_range = np.linspace(live_spot - 800, live_spot + 800, 300)
     pnl = np.zeros_like(spot_range)
     net_credit = 0.0
@@ -864,10 +903,9 @@ else:
     pop_percent = (norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100
     rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
-    # --- SECTION 1: INSTITUTIONAL ANALYTICS DASHBOARD ---
-    st.markdown(f"### 📊 Institutional OI & Sentiment Dashboard <span style='font-size:0.78rem; font-weight:500; color:#38bdf8;'>({oi_source_tag})</span>", unsafe_allow_html=True)
-    put_oi_str = f"OI: {oi_data['put_wall_oi']:,}" if oi_data["put_wall_oi"] > 0 else "Heavy Put OI Base"
-    call_oi_str = f"OI: {oi_data['call_wall_oi']:,}" if oi_data["call_wall_oi"] > 0 else "Heavy Call OI Wall"
+    # --- ZONE 3: INSTITUTIONAL MARKET PULSE (5-CARD GRID + AI STRATEGY BANNER) ---
+    put_oi_str = f"OI: {oi_data['put_wall_oi']:,}" if oi_data["put_wall_oi"] > 0 else "Put OI Base"
+    call_oi_str = f"OI: {oi_data['call_wall_oi']:,}" if oi_data["call_wall_oi"] > 0 else "Call OI Wall"
 
     st.markdown(f"""
     <div class="analytics-grid">
@@ -877,14 +915,14 @@ else:
             <div class="card-sub">Volatility Index</div>
         </div>
         <div class="card">
-            <div class="card-label">Live PCR Ratio</div>
+            <div class="card-label">Live PCR ({oi_source_tag.split()[0]})</div>
             <div class="card-val">{live_pcr:.2f}</div>
             <div class="card-sub">{pcr_sentiment}</div>
         </div>
         <div class="card">
-            <div class="card-label">Max Pain Level</div>
+            <div class="card-label">Max Pain</div>
             <div class="card-val">₹{live_max_pain}</div>
-            <div class="card-sub">Expiry Magnet Point</div>
+            <div class="card-sub">Expiry Magnet</div>
         </div>
         <div class="card">
             <div class="card-label">Put Support Wall</div>
@@ -897,32 +935,26 @@ else:
             <div class="card-sub">{call_oi_str}</div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
 
-    # --- SECTION 2: QUANT STRATEGY & ENTRY CLOCK ---
-    st.markdown(f"""
-    <div class="section-box" style="background:#1e293b !important; border-color:#334155 !important;">
-        <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:6px; color:#f8fafc !important;">
-            <div>🤖 <b style="color:#f8fafc !important;">Active Strategy: <span style="color:#38bdf8 !important;">{strat_name} ({display_exp})</span></b></div>
-            <div>⏰ <b style="color:#f8fafc !important;">Entry Clock: <span style="color:{sig_color} !important;">{entry_signal}</span></b></div>
+    <div class="section-box" style="background:#1e293b !important; border-color:#334155 !important; padding:10px 14px;">
+        <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:4px; color:#f8fafc !important;">
+            <div>🤖 <b style="color:#f8fafc !important;">Selected Setup: <span style="color:#38bdf8 !important;">{strat_name} ({display_exp})</span></b></div>
+            <div>⏰ <b style="color:#f8fafc !important;">Window: <span style="color:{sig_color} !important;">{entry_signal}</span></b></div>
         </div>
-        <div style="color:#e2e8f0 !important; font-size:0.83rem; margin-bottom:4px;">💡 {strat_reason}</div>
-        <div style="color:#94a3b8 !important; font-size:0.75rem;">Advice: {entry_advice}</div>
+        <div style="color:#e2e8f0 !important; font-size:0.82rem;">💡 {strat_reason} &nbsp;<span style="color:#94a3b8 !important;">({entry_advice})</span></div>
     </div>
     """, unsafe_allow_html=True)
 
-    # --- SECTION 3: TRADE EXECUTION & PAYOFF CURVE ---
-    col_left, col_right = st.columns([1.1, 1.2])
+    # --- ZONE 4: BALANCED EXECUTION & PAYOFF WORKSPACE ---
+    col_left, col_right = st.columns([1.15, 1.15])
 
     with col_left:
-        st.markdown("#### 📋 Strategy Legs & Risk Metrics")
         st.markdown(f"""
-        <div class="section-box" style="padding:10px;">
-            <div style="font-size:0.8rem; color:#cbd5e1 !important; margin-bottom:8px;">
-                <b style="color:#f8fafc !important;">Win Probability:</b> {pop_percent:.1f}% &nbsp;|&nbsp; <b style="color:#f8fafc !important;">Lot Size:</b> {LOT_SIZE}
-            </div>
-            <div style="font-size:0.8rem; color:#10b981 !important; margin-bottom:4px;">🟢 Max Profit: <b style="color:#10b981 !important;">₹{max_profit_lot:,.0f}</b> (+{net_credit:.2f} pts)</div>
-            <div style="font-size:0.8rem; color:#ef4444 !important; margin-bottom:4px;">🔴 Max Risk: <b style="color:#ef4444 !important;">₹{max_loss_lot:,.0f}</b> (R:R = 1 : {1/rr_ratio:.2f})</div>
+        <div class="risk-strip">
+            <div>Win Prob: <b style="color:#38bdf8;">{pop_percent:.1f}%</b></div>
+            <div>Max Profit: <b style="color:#10b981;">₹{max_profit_lot:,.0f}</b> (+{net_credit:.1f})</div>
+            <div>Max Risk: <b style="color:#ef4444;">₹{max_loss_lot:,.0f}</b> (1:{1/rr_ratio:.2f})</div>
+            <div>Lot: <b>{LOT_SIZE}</b></div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -931,54 +963,54 @@ else:
             badge_text = "🟢 BUY" if leg["action"] == "BUY" else "🔴 SELL"
             st.markdown(
                 f"<div class='leg-row' style='border-left-color:{badge_color};'>"
-                f"<div style='color:#f8fafc !important;'><b style='color:#f8fafc !important;'>Leg {idx}:</b> {badge_text} <code>{leg['readable']}</code><br/><span style='color:#94a3b8 !important;font-size:0.75rem'>{leg['note']}</span></div>"
+                f"<div style='color:#f8fafc !important;'><b style='color:#f8fafc !important;'>Leg {idx}:</b> {badge_text} <code>{leg['readable']}</code><br/><span style='color:#94a3b8 !important;font-size:0.74rem'>{leg['note']}</span></div>"
                 f"<div style='font-weight:700;color:#f8fafc !important; font-size:0.95rem;'>₹{leg['premium']:.2f}</div>"
                 f"</div>",
                 unsafe_allow_html=True
             )
 
-        json_legs = sorted(display_legs, key=lambda x: 0 if x["action"] == "BUY" else 1)
-        kite_basket = [
-            {
-                "variety": "regular", "tradingsymbol": leg["kite_sym"], "exchange": "NFO",
-                "transaction_type": leg["action"], "order_type": "MARKET", "quantity": LOT_SIZE, "product": "NRML"
-            }
-            for leg in json_legs
-        ]
-        with st.expander(f"📋 Zerodha Basket JSON (1 Lot = {LOT_SIZE} Qty — BUY First)", expanded=False):
-            st.code(json.dumps(kite_basket, indent=2), language="json")
-            
-        if st.button("💾 Save Strategy & Strikes to Live Tracker"):
-            strategy_payload = {
-                "name": strat_name,
-                "expiry": display_exp,
-                "lot_size": LOT_SIZE,
-                "legs": display_legs,
-                "max_profit": float(max_profit_lot),
-                "max_loss": float(max_loss_lot),
-                "entry_spot": float(live_spot),
-                "time": ist_time_str,
-                "last_alert_state": "HOLD"
-            }
-            st.session_state.saved_strategies.append(strategy_payload)
-            save_strategies_to_disk(st.session_state.saved_strategies)
-            if TG_BOT_TOKEN and TG_CHAT_ID:
-                legs_txt = "\n".join([f"• {l['action']} {l['readable']} @ ₹{l['premium']:.2f}" for l in display_legs])
-                send_telegram_alert(
-                    f"💾 <b>New Strategy Saved!</b>\n"
-                    f"<b>{strat_name} ({display_exp})</b>\n"
-                    f"Entry Spot: ₹{live_spot:,.2f}\n"
-                    f"{legs_txt}\n"
-                    f"Max Profit: ₹{max_profit_lot:,.0f} | Max Risk: ₹{max_loss_lot:,.0f}"
-                )
-            st.session_state.flash_msg = "✅ Strategy Saved to Live Tracker!"
-            st.rerun()
+        btn_c1, btn_c2 = st.columns([1.2, 1.0])
+        with btn_c1:
+            if st.button("💾 Save Strategy to Live Tracker", use_container_width=True):
+                strategy_payload = {
+                    "name": strat_name,
+                    "expiry": display_exp,
+                    "lot_size": LOT_SIZE,
+                    "legs": display_legs,
+                    "max_profit": float(max_profit_lot),
+                    "max_loss": float(max_loss_lot),
+                    "entry_spot": float(live_spot),
+                    "time": ist_time_str,
+                    "last_alert_state": "HOLD"
+                }
+                st.session_state.saved_strategies.append(strategy_payload)
+                save_strategies_to_disk(st.session_state.saved_strategies)
+                if TG_BOT_TOKEN and TG_CHAT_ID:
+                    legs_txt = "\n".join([f"• {l['action']} {l['readable']} @ ₹{l['premium']:.2f}" for l in display_legs])
+                    send_telegram_alert(
+                        f"💾 <b>New Strategy Saved!</b>\n"
+                        f"<b>{strat_name} ({display_exp})</b>\n"
+                        f"Entry Spot: ₹{live_spot:,.2f}\n"
+                        f"{legs_txt}\n"
+                        f"Max Profit: ₹{max_profit_lot:,.0f} | Max Risk: ₹{max_loss_lot:,.0f}"
+                    )
+                st.session_state.flash_msg = "✅ Strategy Saved to Live Tracker!"
+                st.rerun()
 
-        st.caption(f"🔒 Margin Safe: BUY orders sorted first | Synced: {ist_time_str}")
+        with btn_c2:
+            json_legs = sorted(display_legs, key=lambda x: 0 if x["action"] == "BUY" else 1)
+            kite_basket = [
+                {
+                    "variety": "regular", "tradingsymbol": leg["kite_sym"], "exchange": "NFO",
+                    "transaction_type": leg["action"], "order_type": "MARKET", "quantity": LOT_SIZE, "product": "NRML"
+                }
+                for leg in json_legs
+            ]
+            with st.expander("📋 Zerodha JSON", expanded=False):
+                st.code(json.dumps(kite_basket, indent=2), language="json")
 
     with col_right:
-        st.markdown(f"#### 📈 Payoff Curve & Breakevens ({display_exp})")
-        fig, ax = plt.subplots(figsize=(6.8, 3.4), facecolor="#0b0f19")
+        fig, ax = plt.subplots(figsize=(6.8, 3.65), facecolor="#0b0f19")
         ax.set_facecolor("#111827")
         ax.plot(spot_range, pnl * LOT_SIZE, color="#38bdf8", linewidth=2.2, label="Total P&L (₹)")
         ax.axhline(0, color="#64748b", linestyle="--", linewidth=0.9)
@@ -993,11 +1025,11 @@ else:
         for spine in ax.spines.values():
             spine.set_color("#1f2937")
 
-        ax.set_xlabel(f"Nifty Expiry Spot | Breakevens: {lower_be:.0f} — {upper_be:.0f}", color="#94a3b8", fontsize=9)
-        ax.set_ylabel(f"Total P&L (₹ for {LOT_SIZE} Qty)", color="#94a3b8", fontsize=9)
+        ax.set_title(f"Payoff Curve ({display_exp}) | BE: {lower_be:.0f} — {upper_be:.0f}", color="#e2e8f0", fontsize=9.5, pad=8)
+        ax.set_ylabel(f"P&L (₹ / {LOT_SIZE} Qty)", color="#94a3b8", fontsize=8.5)
         ax.grid(True, color="#1f2937", linestyle=":", alpha=0.6)
         ax.legend(facecolor="#111827", edgecolor="#1f2937", labelcolor="#e2e8f0", loc="upper right", fontsize=8)
-        plt.tight_layout(pad=0.5)
+        plt.tight_layout(pad=0.6)
 
         st.pyplot(fig)
         plt.close(fig)
