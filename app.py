@@ -303,18 +303,18 @@ st.markdown("---")
 # --- NAVIGATION & AUTO REFRESH ---
 nav_col1, nav_col2 = st.columns([3, 1])
 with nav_col1:
-    saved_count = len(st.session_state.saved_strategies)
     nav_mode = st.radio(
         "Mode",
-        ["⚡ Quant Terminal", f"🛡️ Saved Live Tracker ({saved_count})"],
+        ["⚡ Quant Terminal", "🛡️ Saved Live Tracker"],
         horizontal=True,
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        key="main_nav_mode"
     )
 with nav_col2:
     auto_refresh_on = st.toggle("Sync (10s)", value=True)
 
-if auto_refresh_on:
-    st_autorefresh(interval=10 * 1000, key="terminal_refresh_final_v3")
+if nav_mode == "🛡️ Saved Live Tracker":
+    st.markdown(f"### 🛡️ Live Saved Strategies & Strike Tracker ({len(st.session_state.saved_strategies)})")
 
 # ==============================================================================
 # MODE 2: SAVED LIVE TRACKER (WITH STRIKE PRICES, LIVE LTP & P&L)
