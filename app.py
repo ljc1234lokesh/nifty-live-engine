@@ -59,6 +59,25 @@ if not valid_expiries:
 top_expiries = valid_expiries[:4]
 expiry_labels = [f"{d.strftime('%d-%b')} ({max((d - today_date).days, 1)}d)" for d in top_expiries]
 
+# ==============================================================================
+# ZONE 0: APP BRANDING & HEADER BANNER
+# ==============================================================================
+st.markdown("""
+<div style="background: linear-gradient(90deg, #0b0f19 0%, #111827 50%, #0b0f19 100%); border: 1px solid #1f2937; border-radius: 8px; padding: 10px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 1.3rem;">📊</span>
+        <div>
+            <div style="font-size: 1.02rem; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px;">NIFTY INSTITUTIONAL QUANT TERMINAL</div>
+            <div style="font-size: 0.70rem; color: #38bdf8;">Advanced Delta & OI-Synced Options Analytics & Live Tracker</div>
+        </div>
+    </div>
+    <div style="display: flex; gap: 6px; align-items: center;">
+        <span style="background: #1e293b; border: 1px solid #334155; color: #10b981; font-size: 0.70rem; font-weight: 700; padding: 3px 8px; border-radius: 4px;">🟢 LIVE NFO API</span>
+        <span style="background: #1e293b; border: 1px solid #334155; color: #38bdf8; font-size: 0.70rem; font-weight: 700; padding: 3px 8px; border-radius: 4px;">⚡ 10s SYNC</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
 # --- ZONE 1: TOP MARKET TICKER BAR ---
 t1, t2, t3 = st.columns(3)
 for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty"), (t3, "SENSEX", "sensex")]:
@@ -66,8 +85,8 @@ for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty")
         d = market_data[key]
         st.markdown(f"""
         <div class="index-ticker">
-            <div style="font-weight:700; color:#38bdf8; font-size:0.92rem;">{name}: ₹{d['ltp']:,.2f}</div>
-            <div style="font-size:0.70rem; color:#94a3b8;">O: {d['open']:,.1f} | H: {d['high']:,.1f} | L: {d['low']:,.1f} | C: {d['close']:,.1f}</div>
+            <div style="font-weight:700; color:#38bdf8; font-size:0.90rem;">{name}: ₹{d['ltp']:,.2f}</div>
+            <div style="font-size:0.68rem; color:#94a3b8;">O: {d['open']:,.1f} | H: {d['high']:,.1f} | L: {d['low']:,.1f} | C: {d['close']:,.1f}</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -76,14 +95,14 @@ nav_col1, nav_col2, nav_col3 = st.columns([2.4, 1.4, 1.0])
 with nav_col1:
     nav_mode = st.radio("Workspace", ["⚡ Quant Terminal", "🛡️ Saved Live Tracker"], horizontal=True, label_visibility="collapsed", key="main_nav_mode")
 with nav_col2:
-    st.markdown(f"<div style='text-align:right; font-size:0.80rem; color:#64748b; padding-top:4px;'>🕒 <b>{ist_time_str}</b> &nbsp;|&nbsp; Active: <b>{len(st.session_state.saved_strategies)}</b></div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align:right; font-size:0.78rem; color:#64748b; padding-top:4px;'>🕒 <b>{ist_time_str}</b> &nbsp;|&nbsp; Active: <b>{len(st.session_state.saved_strategies)}</b></div>", unsafe_allow_html=True)
 with nav_col3:
     auto_refresh_on = st.toggle("Sync (10s)", value=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=10 * 1000, key="terminal_modular_sync")
+    st_autorefresh(interval=10 * 1000, key="terminal_modular_sync_v2")
 
-st.markdown("<hr style='margin: 6px 0 12px 0; border-color: #1f2937;'>", unsafe_allow_html=True)
+st.markdown("<hr style='margin: 4px 0 10px 0; border-color: #1f2937;'>", unsafe_allow_html=True)
 
 # ==============================================================================
 # WORKSPACE A: SAVED LIVE TRACKER
