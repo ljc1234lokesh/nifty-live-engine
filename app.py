@@ -464,7 +464,7 @@ if auto_refresh_on:
     st_autorefresh(interval=10 * 1000, key="terminal_refresh_silent_v5")
 
 # ==============================================================================
-# MODE 2: SAVED LIVE TRACKER (WITH STRIKE PRICES, EDIT ENTRY & TELEGRAM ALERTS)
+# MODE 2: SAVED LIVE TRACKER (EDIT STRIKES + ENTRY PRICES & TELEGRAM ALERTS)
 # ==============================================================================
 if nav_mode == "🛡️ Saved Live Tracker":
     st.markdown(f"### 🛡️ Live Saved Strategies & Strike Tracker ({len(st.session_state.saved_strategies)})")
@@ -564,29 +564,54 @@ if nav_mode == "🛡️ Saved Live Tracker":
                 </div>
                 """, unsafe_allow_html=True)
 
-                # --- MANUAL ENTRY PRICE EDITOR (FOR KITE EXECUTION MATCH) ---
-                with st.expander(f"✏️ Edit Entry Prices — #{idx+1} {strat['name']} (Match Kite Fill)", expanded=False):
+                # --- MANUAL STRIKE & ENTRY PRICE EDITOR (MATCH KITE EXECUTION) ---
+                with st.expander(f"✏️ Edit Strikes & Entry Prices — #{idx+1} {strat['name']}", expanded=False):
                     edit_cols = st.columns(len(strat.get("legs", [])))
-                    updated_prices = []
+                    updated_legs_data = []
                     for l_i, leg in enumerate(strat.get("legs", [])):
                         with edit_cols[l_i]:
-                            new_val = st.number_input(
-                                f"{leg['action']} {leg['strike']} {leg['type']}",
+                            st.markdown(f"**Leg {l_i+1}: {leg['action']} {leg['type']}**")
+                            new_strike = st.number_input(
+                                "Strike Price",
+                                min_value=15000,
+                                max_value=35000,
+                                value=int(leg["strike"]),
+                                step=50,
+                                key=f"edit_strike_{idx}_{l_i}"
+                            )
+                            new_prem = st.number_input(
+                                "Entry Price (₹)",
                                 min_value=0.05,
                                 value=float(leg["premium"]),
                                 step=0.05,
                                 format="%.2f",
                                 key=f"edit_prem_{idx}_{l_i}"
                             )
-                            updated_prices.append(new_val)
+                            updated_legs_data.append((new_strike, new_prem))
                     
-                    if st.button("💾 Save Updated Entry Prices", key=f"save_edit_btn_{idx}"):
-                        for l_i, new_p in enumerate(updated_prices):
-                            st.session_state.saved_strategies[idx]["legs"][l_i]["premium"] = float(new_p)
-                        # Reset alert state so new targets evaluate cleanly
+                    if st.button("💾 Save Updated Strikes & Prices", key=f"save_edit_btn_{idx}"):
+                        exp_str = strat["expiry"]
+                        for l_i, (n_strike, n_prem) in enumerate(updated_legs_data):
+                            old_leg = st.session_state.saved_strategies[idx]["legs"][l_i]
+                            o_type = old_leg["type"]
+                            
+                            # Auto-lookup exact Angel One Token for the new Strike
+                            matched_row = nfo_df[
+                                (nfo_df["strike_int"] == int(n_strike)) & 
+                                (nfo_df["opt_type"] == o_type) &
+                                (nfo_df["expiry_dt"].apply(lambda d: d.strftime("%d-%b") if pd.notnull(d) else "") == exp_str)
+                            ]
+                            if not matched_row.empty:
+                                old_leg["token"] = str(matched_row.iloc[0]["token"])
+                            
+                            old_leg["strike"] = int(n_strike)
+                            old_leg["premium"] = float(n_prem)
+                            old_leg["readable"] = f"NIFTY {exp_str} {int(n_strike)} {o_type}"
+                            st.session_state.saved_strategies[idx]["legs"][l_i] = old_leg
+
                         st.session_state.saved_strategies[idx]["last_alert_state"] = "HOLD"
                         save_strategies_to_disk(st.session_state.saved_strategies)
-                        st.success("✅ Kite Entry Prices updated & saved!")
+                        st.success("✅ Strikes, Tokens & Entry Prices updated!")
                         st.rerun()
             
             with col_del:
