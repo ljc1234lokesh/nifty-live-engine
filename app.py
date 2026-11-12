@@ -24,8 +24,6 @@ st.markdown("""
         max-width: 100% !important;
     }
     header[data-testid="stHeader"] { display: none !important; }
-    .stRadio [role="radiogroup"] { gap: 14px; padding-top: 4px; flex-wrap: wrap; }
-    
     .analytics-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -122,8 +120,8 @@ def load_angel_nfo_master():
 
 nfo_df = load_angel_nfo_master()
 
-# --- 2. LIVE INDICES (SYNCED WITH ANGEL ONE TRADEONE SNAPSHOT) ---
-@st.cache_data(ttl=10)
+# --- 2. LIVE INDICES (SYNCED LIVE LTP FETCHER) ---
+@st.cache_data(ttl=5)
 def get_live_indices():
     data_out = {
         "nifty": 25255.05,
@@ -132,7 +130,6 @@ def get_live_indices():
         "vix": 16.70
     }
     try:
-        # Fetching Nifty and BankNifty from NSE, and VIX
         res_nse = smart_api.getMarketData("LTP", {"NSE": ["99926000", "99926001", "99926009"]})
         if res_nse and res_nse.get("status") and "data" in res_nse:
             for item in res_nse["data"].get("fetched", []):
@@ -142,7 +139,6 @@ def get_live_indices():
                 elif tok == "99926001": data_out["banknifty"] = ltp
                 elif tok == "99926009" and 8.0 <= ltp <= 60.0: data_out["vix"] = ltp
 
-        # Fetching Sensex from BSE segment
         res_bse = smart_api.getMarketData("LTP", {"BSE": ["99919000"]})
         if res_bse and res_bse.get("status") and "data" in res_bse:
             for item in res_bse["data"].get("fetched", []):
@@ -200,7 +196,6 @@ if not valid_expiries:
 top_expiries = valid_expiries[:4]
 expiry_labels = [f"{d.strftime('%d-%b')} ({max((d - today_date).days, 1)}d)" for d in top_expiries]
 
-# Top Ticker Bar for Indices
 t1, t2, t3 = st.columns(3)
 with t1:
     st.markdown(f"**📉 NIFTY:** ₹{live_spot:,.2f}")
@@ -217,10 +212,10 @@ with c_head1:
 with c_head2:
     selected_label = st.radio("Expiry", expiry_labels, horizontal=True, label_visibility="collapsed")
 with c_head3:
-    auto_refresh_on = st.toggle("Sync (15s)", value=True)
+    auto_refresh_on = st.toggle("Sync (10s)", value=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=15 * 1000, key="indices_terminal_refresh")
+    st_autorefresh(interval=10 * 1000, key="fast_terminal_refresh")
 
 selected_idx = expiry_labels.index(selected_label)
 chosen_exp_date = top_expiries[selected_idx]
@@ -343,7 +338,7 @@ stdev = live_spot * sigma * np.sqrt(T_years)
 pop_percent = (norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100
 rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
-# --- SECTION 1: INSTITUTIONAL ANALYTICS DASHBOARD (WITH INDIA VIX) ---
+# --- SECTION 1: INSTITUTIONAL ANALYTICS DASHBOARD ---
 st.markdown("### 📊 Institutional OI & Sentiment Dashboard")
 st.markdown(f"""
 <div class="analytics-grid">
@@ -450,4 +445,3 @@ with col_right:
 
     st.pyplot(fig)
     plt.close(fig)
-                                     
