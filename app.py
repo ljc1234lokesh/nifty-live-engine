@@ -464,7 +464,7 @@ if auto_refresh_on:
     st_autorefresh(interval=10 * 1000, key="terminal_refresh_silent_v5")
 
 # ==============================================================================
-# MODE 2: SAVED LIVE TRACKER (WITH STRIKE PRICES, LIVE LTP & TELEGRAM ALERTS)
+# MODE 2: SAVED LIVE TRACKER (WITH STRIKE PRICES, EDIT ENTRY & TELEGRAM ALERTS)
 # ==============================================================================
 if nav_mode == "🛡️ Saved Live Tracker":
     st.markdown(f"### 🛡️ Live Saved Strategies & Strike Tracker ({len(st.session_state.saved_strategies)})")
@@ -563,6 +563,31 @@ if nav_mode == "🛡️ Saved Live Tracker":
                     {leg_html_rows}
                 </div>
                 """, unsafe_allow_html=True)
+
+                # --- MANUAL ENTRY PRICE EDITOR (FOR KITE EXECUTION MATCH) ---
+                with st.expander(f"✏️ Edit Entry Prices — #{idx+1} {strat['name']} (Match Kite Fill)", expanded=False):
+                    edit_cols = st.columns(len(strat.get("legs", [])))
+                    updated_prices = []
+                    for l_i, leg in enumerate(strat.get("legs", [])):
+                        with edit_cols[l_i]:
+                            new_val = st.number_input(
+                                f"{leg['action']} {leg['strike']} {leg['type']}",
+                                min_value=0.05,
+                                value=float(leg["premium"]),
+                                step=0.05,
+                                format="%.2f",
+                                key=f"edit_prem_{idx}_{l_i}"
+                            )
+                            updated_prices.append(new_val)
+                    
+                    if st.button("💾 Save Updated Entry Prices", key=f"save_edit_btn_{idx}"):
+                        for l_i, new_p in enumerate(updated_prices):
+                            st.session_state.saved_strategies[idx]["legs"][l_i]["premium"] = float(new_p)
+                        # Reset alert state so new targets evaluate cleanly
+                        st.session_state.saved_strategies[idx]["last_alert_state"] = "HOLD"
+                        save_strategies_to_disk(st.session_state.saved_strategies)
+                        st.success("✅ Kite Entry Prices updated & saved!")
+                        st.rerun()
             
             with col_del:
                 st.markdown("<br>", unsafe_allow_html=True)
