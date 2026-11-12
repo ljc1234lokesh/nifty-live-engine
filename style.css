@@ -1,0 +1,108 @@
+.block-container {
+    padding-top: 0.75rem !important;
+    padding-bottom: 1.5rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    max-width: 100% !important;
+}
+header[data-testid="stHeader"] { display: none !important; }
+[data-stale="true"] { opacity: 1 !important; transition: none !important; }
+div[data-testid="stStatusWidget"] { display: none !important; }
+
+/* Top Index Tickers */
+.index-ticker {
+    background: #111827 !important;
+    border: 1px solid #1f2937 !important;
+    border-radius: 8px;
+    padding: 8px 10px;
+    text-align: center;
+    color: #f8fafc !important;
+    margin-bottom: 6px;
+}
+
+/* 5-Card OI & Sentiment Strip */
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.card {
+    background: #111827 !important;
+    border: 1px solid #1f2937 !important;
+    border-radius: 8px;
+    padding: 9px 11px;
+    color: #f8fafc !important;
+}
+.card-label {
+    font-size: 0.70rem;
+    color: #94a3b8 !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+.card-val {
+    font-size: 1.12rem;
+    font-weight: 700;
+    color: #f8fafc !important;
+    white-space: nowrap;
+}
+.card-sub {
+    font-size: 0.70rem;
+    color: #38bdf8 !important;
+    margin-top: 2px;
+}
+
+/* Unified Section Boxes */
+.section-box {
+    background: #111827 !important;
+    border: 1px solid #1f2937 !important;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    color: #f8fafc !important;
+}
+.section-box b, .section-box div, .section-box span {
+    color: inherit;
+}
+
+/* Strategy Leg Rows */
+.leg-row {
+    background: #0b0f19 !important;
+    border-left: 4px solid #38bdf8;
+    padding: 8px 11px;
+    margin-bottom: 6px;
+    border-radius: 6px;
+    font-size: 0.86rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    color: #f8fafc !important;
+}
+.leg-row b {
+    color: #f8fafc !important;
+}
+.leg-row code {
+    background: #1e293b !important;
+    color: #38bdf8 !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    font-weight: 600 !important;
+    border: 1px solid #334155 !important;
+}
+
+/* Compact Risk Strip */
+.risk-strip {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: #0b0f19 !important;
+    border: 1px solid #1f2937 !important;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    font-size: 0.82rem;
+}
