@@ -1,10 +1,10 @@
-/* --- 100% DARK THEME ENFORCEMENT --- */
+/* --- 100% DARK THEME & TEXT CONTRAST ENFORCEMENT --- */
 .stApp {
     background-color: #0b0f19 !important;
     color: #f8fafc !important;
 }
 .block-container {
-    padding-top: 5.5rem !important; /* Space for fixed top bar */
+    padding-top: 5.5rem !important;
     padding-bottom: 2rem !important;
     padding-left: 1rem !important;
     padding-right: 1rem !important;
@@ -14,7 +14,7 @@ header[data-testid="stHeader"] { display: none !important; }
 [data-stale="true"] { opacity: 1 !important; transition: none !important; }
 div[data-testid="stStatusWidget"] { display: none !important; }
 
-/* --- PERMANENT FIXED TOP BAR (SCROLL FREEZE) --- */
+/* --- PERMANENT FIXED TOP BAR --- */
 .fixed-top-wrapper {
     position: fixed;
     top: 0;
@@ -50,6 +50,15 @@ div[data-testid="stStatusWidget"] { display: none !important; }
     text-align: center;
     color: #f8fafc !important;
     margin-bottom: 2px;
+}
+
+/* Fix Streamlit Radio / Tabs Text Visibility (Blue Marked Fix) */
+div[data-baseweb="radio"] div {
+    color: #f8fafc !important;
+    font-weight: 600 !important;
+}
+label[data-baseweb="radio"] p, span.st-bp {
+    color: #f8fafc !important;
 }
 
 /* 5-Card OI & Sentiment Strip */
@@ -125,7 +134,7 @@ div[data-testid="stStatusWidget"] { display: none !important; }
     border: 1px solid #334155 !important;
 }
 
-/* Compact Risk Strip (Preserving Green Profit & Red Loss Colors) */
+/* Compact Risk Strip */
 .risk-strip {
     display: flex;
     justify-content: space-between;
@@ -137,11 +146,5 @@ div[data-testid="stStatusWidget"] { display: none !important; }
     padding: 8px 12px;
     margin-bottom: 10px;
     font-size: 0.84rem;
-    color: #f8fafc !important;
-}
-.risk-strip div {
-    color: #94a3b8 !important;
-}
-.risk-strip b {
     color: #f8fafc !important;
 }
