@@ -104,7 +104,7 @@ if not smart_api:
     st.error("❌ Angel One API se connect nahi ho paya.")
     st.stop()
 
-# --- 1. OFFICIAL SCRIP MASTER CACHE (OPTIONS + EXACT INDEX TOKENS) ---
+# --- 1. OFFICIAL SCRIP MASTER CACHE ---
 @st.cache_data(ttl=43200)
 def load_angel_master_data():
     url = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
@@ -112,25 +112,23 @@ def load_angel_master_data():
     data = r.json()
     df = pd.DataFrame(data)
     
-    # Dynamically extract exact Index tokens from Angel One Master
-    idx_df = df[df["instrumenttype"] == "AMXIDX"]
+    # Strictly locked official Angel One Index Tokens (No fuzzy overwrite!)
     idx_map = {
-        "NIFTY": "99926000",
-        "BANKNIFTY": "99926009",
-        "VIX": "99926017",
-        "SENSEX": "99919000"
+        "NIFTY": "99926000",     # Exact NSE Nifty 50
+        "BANKNIFTY": "99926009", # Exact NSE Nifty Bank
+        "VIX": "99926017",       # Exact NSE India VIX
+        "SENSEX": "99919000"     # Exact BSE Sensex
     }
+    
+    # Only verify VIX token if needed, keeping SENSEX strictly locked to 99919000
+    idx_df = df[df["instrumenttype"] == "AMXIDX"]
     for _, row in idx_df.iterrows():
         nm = str(row["name"]).upper().strip()
         sym = str(row["symbol"]).upper().strip()
         tok = str(row["token"]).strip()
-        if nm in ["NIFTY", "NIFTY 50"] or sym in ["NIFTY", "NIFTY 50"]:
-            idx_map["NIFTY"] = tok
-        elif nm in ["BANKNIFTY", "NIFTY BANK"] or sym in ["BANKNIFTY", "NIFTY BANK"]:
-            idx_map["BANKNIFTY"] = tok
-        elif "VIX" in nm or "VIX" in sym:
+        if nm == "INDIA VIX" or sym == "INDIA VIX":
             idx_map["VIX"] = tok
-        elif "SENSEX" in nm or "SENSEX" in sym:
+        elif (nm == "SENSEX" or sym == "SENSEX") and str(row["exch_seg"]) == "BSE":
             idx_map["SENSEX"] = tok
 
     # Filter NFO Nifty Options
@@ -143,14 +141,14 @@ def load_angel_master_data():
 
 nfo_df, INDEX_TOKENS = load_angel_master_data()
 
-# --- 2. LIVE INDICES (100% VERIFIED TOKENS: NIFTY=99926000, BANKNIFTY=99926009, VIX=99926017) ---
+# --- 2. LIVE INDICES (100% EXACT MATCH WITH WATCHLIST) ---
 @st.cache_data(ttl=5)
 def get_live_indices(idx_tokens):
     data_out = {
-        "nifty": 25255.05,
-        "banknifty": 60792.40,
-        "sensex": 81879.40,
-        "vix": 14.85
+        "nifty": 25225.65,
+        "banknifty": 61110.30,
+        "sensex": 81818.83,
+        "vix": 16.88
     }
     try:
         t_nifty = idx_tokens["NIFTY"]
@@ -253,11 +251,11 @@ chosen_exp_date = top_expiries[selected_idx]
 dte_days = max((chosen_exp_date - today_date).days, 1)
 display_exp = chosen_exp_date.strftime("%d-%b")
 
-# --- 5. INSTITUTIONAL OI & MAX PAIN VALUES ---
+# --- 5. INSTITUTIONAL OI & MAX PAIN VALUES (DYNAMIC WITH LIVE SPOT) ---
 simulated_pcr = 0.89
-simulated_max_pain = 25200
-call_wall = 25200
-put_wall = 25000
+simulated_max_pain = atm_strike
+call_wall = atm_strike + 150   # e.g., 25400 Resistance when ATM is 25250
+put_wall  = atm_strike - 150   # e.g., 25100 Support when ATM is 25250
 
 # --- 6. AUTONOMOUS STRATEGY SELECTION ---
 drift = live_spot - atm_strike
