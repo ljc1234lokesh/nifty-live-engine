@@ -72,6 +72,13 @@ st.markdown("""
         justify-content: space-between;
         align-items: center;
     }
+    .index-ticker {
+        background: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 6px;
+        padding: 8px;
+        text-align: center;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -112,15 +119,13 @@ def load_angel_master_data():
     data = r.json()
     df = pd.DataFrame(data)
     
-    # Strictly locked official Angel One Index Tokens (No fuzzy overwrite!)
     idx_map = {
-        "NIFTY": "99926000",     # Exact NSE Nifty 50
-        "BANKNIFTY": "99926009", # Exact NSE Nifty Bank
-        "VIX": "99926017",       # Exact NSE India VIX
-        "SENSEX": "99919000"     # Exact BSE Sensex
+        "NIFTY": "99926000",
+        "BANKNIFTY": "99926009",
+        "VIX": "99926017",
+        "SENSEX": "99919000"
     }
     
-    # Only verify VIX token if needed, keeping SENSEX strictly locked to 99919000
     idx_df = df[df["instrumenttype"] == "AMXIDX"]
     for _, row in idx_df.iterrows():
         nm = str(row["name"]).upper().strip()
@@ -131,7 +136,6 @@ def load_angel_master_data():
         elif (nm == "SENSEX" or sym == "SENSEX") and str(row["exch_seg"]) == "BSE":
             idx_map["SENSEX"] = tok
 
-    # Filter NFO Nifty Options
     opt_df = df[(df["exch_seg"] == "NFO") & (df["name"] == "NIFTY") & (df["instrumenttype"] == "OPTIDX")].copy()
     opt_df["strike_int"] = (pd.to_numeric(opt_df["strike"], errors="coerce") / 100).round().astype(int)
     opt_df["lotsize_int"] = pd.to_numeric(opt_df["lotsize"], errors="coerce").fillna(65).astype(int)
@@ -141,13 +145,13 @@ def load_angel_master_data():
 
 nfo_df, INDEX_TOKENS = load_angel_master_data()
 
-# --- 2. LIVE INDICES (100% EXACT MATCH WITH WATCHLIST) ---
+# --- 2. LIVE INDICES & OHLC FETCHER ---
 @st.cache_data(ttl=5)
-def get_live_indices(idx_tokens):
-    data_out = {
-        "nifty": 25225.65,
-        "banknifty": 61110.30,
-        "sensex": 81818.83,
+def get_comprehensive_indices(idx_tokens):
+    out = {
+        "nifty": {"ltp": 25225.65, "open": 25200.0, "high": 25300.0, "low": 25150.0, "close": 25180.0},
+        "banknifty": {"ltp": 61110.30, "open": 60900.0, "high": 61300.0, "low": 60800.0, "close": 60792.0},
+        "sensex": {"ltp": 81818.83, "open": 81500.0, "high": 82000.0, "low": 81400.0, "close": 81100.0},
         "vix": 16.88
     }
     try:
@@ -161,27 +165,37 @@ def get_live_indices(idx_tokens):
             for item in res_nse["data"].get("fetched", []):
                 tok = str(item["symbolToken"])
                 ltp = float(item["ltp"])
+                opn = float(item.get("open", ltp))
+                hi  = float(item.get("high", ltp))
+                lo  = float(item.get("low", ltp))
+                cls = float(item.get("close", ltp))
+
                 if tok == t_nifty and ltp > 10000:
-                    data_out["nifty"] = ltp
+                    out["nifty"] = {"ltp": ltp, "open": opn, "high": hi, "low": lo, "close": cls}
                 elif tok == t_bnf and ltp > 25000:
-                    data_out["banknifty"] = ltp
+                    out["banknifty"] = {"ltp": ltp, "open": opn, "high": hi, "low": lo, "close": cls}
                 elif tok == t_vix and ltp > 0:
-                    data_out["vix"] = ltp
+                    out["vix"] = ltp
 
         res_bse = smart_api.getMarketData("LTP", {"BSE": [t_snx]})
         if res_bse and res_bse.get("status") and "data" in res_bse:
             for item in res_bse["data"].get("fetched", []):
-                if str(item["symbolToken"]) == t_snx and float(item["ltp"]) > 30000:
-                    data_out["sensex"] = float(item["ltp"])
+                if str(item["symbolToken"]) == t_snx:
+                    ltp = float(item["ltp"])
+                    out["sensex"] = {
+                        "ltp": ltp, 
+                        "open": float(item.get("open", ltp)), 
+                        "high": float(item.get("high", ltp)), 
+                        "low": float(item.get("low", ltp)), 
+                        "close": float(item.get("close", ltp))
+                    }
     except Exception:
         pass
-    return data_out
+    return out
 
-indices = get_live_indices(INDEX_TOKENS)
-live_spot = indices["nifty"]
-live_banknifty = indices["banknifty"]
-live_sensex = indices["sensex"]
-live_vix = indices["vix"]
+market_data = get_comprehensive_indices(INDEX_TOKENS)
+live_spot = market_data["nifty"]["ltp"]
+live_vix = market_data["vix"]
 atm_strike = int(round(live_spot / 50.0) * 50)
 
 # --- 3. IST ENTRY TIMING & QUANT CLOCK ---
@@ -216,7 +230,7 @@ else:
     entry_advice = "Closing Gamma Move! Avoid New Positions"
     sig_color = "#f97316"
 
-# --- 4. EXPIRY SELECTOR & TOP TICKER STRIP ---
+# --- 4. EXPIRY SELECTOR & TOP COMPREHENSIVE TICKER STRIP (OHLC) ---
 today_date = ist_now.date()
 valid_expiries = sorted([d for d in nfo_df["expiry_dt"].dropna().unique() if d >= today_date])
 if not valid_expiries:
@@ -225,13 +239,32 @@ if not valid_expiries:
 top_expiries = valid_expiries[:4]
 expiry_labels = [f"{d.strftime('%d-%b')} ({max((d - today_date).days, 1)}d)" for d in top_expiries]
 
+# Render OHLC Ticker Boxes
 t1, t2, t3 = st.columns(3)
 with t1:
-    st.markdown(f"**📉 NIFTY:** ₹{live_spot:,.2f}")
+    nf = market_data["nifty"]
+    st.markdown(f"""
+    <div class="index-ticker">
+        <div style="font-weight:700; color:#38bdf8; font-size:0.9rem;">NIFTY 50: ₹{nf['ltp']:,.2f}</div>
+        <div style="font-size:0.7rem; color:#94a3b8;">O: {nf['open']:,.1f} | H: {nf['high']:,.1f} | L: {nf['low']:,.1f} | C: {nf['close']:,.1f}</div>
+    </div>
+    """, unsafe_allow_html=True)
 with t2:
-    st.markdown(f"**🏦 BANKNIFTY:** ₹{live_banknifty:,.2f}")
+    bn = market_data["banknifty"]
+    st.markdown(f"""
+    <div class="index-ticker">
+        <div style="font-weight:700; color:#38bdf8; font-size:0.9rem;">BANKNIFTY: ₹{bn['ltp']:,.2f}</div>
+        <div style="font-size:0.7rem; color:#94a3b8;">O: {bn['open']:,.1f} | H: {bn['high']:,.1f} | L: {bn['low']:,.1f} | C: {bn['close']:,.1f}</div>
+    </div>
+    """, unsafe_allow_html=True)
 with t3:
-    st.markdown(f"**📊 SENSEX:** ₹{live_sensex:,.2f}")
+    sx = market_data["sensex"]
+    st.markdown(f"""
+    <div class="index-ticker">
+        <div style="font-weight:700; color:#38bdf8; font-size:0.9rem;">SENSEX: ₹{sx['ltp']:,.2f}</div>
+        <div style="font-size:0.7rem; color:#94a3b8;">O: {sx['open']:,.1f} | H: {sx['high']:,.1f} | L: {sx['low']:,.1f} | C: {sx['close']:,.1f}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -244,18 +277,18 @@ with c_head3:
     auto_refresh_on = st.toggle("Sync (10s)", value=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=10 * 1000, key="fast_terminal_refresh")
+    st_autorefresh(interval=10 * 1000, key="ohlc_terminal_refresh")
 
 selected_idx = expiry_labels.index(selected_label)
 chosen_exp_date = top_expiries[selected_idx]
 dte_days = max((chosen_exp_date - today_date).days, 1)
 display_exp = chosen_exp_date.strftime("%d-%b")
 
-# --- 5. INSTITUTIONAL OI & MAX PAIN VALUES (DYNAMIC WITH LIVE SPOT) ---
+# --- 5. INSTITUTIONAL OI & MAX PAIN VALUES (DYNAMIC) ---
 simulated_pcr = 0.89
 simulated_max_pain = atm_strike
-call_wall = atm_strike + 150   # e.g., 25400 Resistance when ATM is 25250
-put_wall  = atm_strike - 150   # e.g., 25100 Support when ATM is 25250
+call_wall = atm_strike + 150
+put_wall  = atm_strike - 150
 
 # --- 6. AUTONOMOUS STRATEGY SELECTION ---
 drift = live_spot - atm_strike
@@ -270,7 +303,7 @@ if live_spot >= call_wall - 30:
         {"type": "CE", "action": "BUY",  "strike": buy_ce,  "note": "Upside Protection Wing"}
     ]
 else:
-    market_regime = "OI CORRIDOR (Support 25000 | Resistance 25200)"
+    market_regime = "OI CORRIDOR"
     strat_name = "Short Iron Condor (OI-Synced)"
     strat_reason = f"Max Pain at {simulated_max_pain} & PCR {simulated_pcr:.2f}. Operating inside {put_wall} - {call_wall} range."
     sell_pe = put_wall
@@ -374,7 +407,7 @@ st.markdown(f"""
     <div class="card">
         <div class="card-label">India VIX</div>
         <div class="card-val" style="color:#f59e0b;">{live_vix:.2f}</div>
-        <div class="card-sub">Market Volatility</div>
+        <div class="card-sub">Volatility Index</div>
     </div>
     <div class="card">
         <div class="card-label">Live PCR Ratio</div>
