@@ -60,52 +60,52 @@ top_expiries = valid_expiries[:4]
 expiry_labels = [f"{d.strftime('%d-%b')} ({max((d - today_date).days, 1)}d)" for d in top_expiries]
 
 # ==============================================================================
-# STICKY TOP CONTAINER (RED BOX AREA FROZEN ON TOP)
+# FIXED TOP CONTAINER (SCROLL FREEZE ON TOP WITHOUT EXTRA GAP)
 # ==============================================================================
-with st.container():
-    st.markdown('<div class="sticky-top-container">', unsafe_allow_html=True)
-    
-    # --- BRAND HEADER WITH CLOCK & SYNC TOGGLE ---
-    active_count = len(st.session_state.saved_strategies)
-    st.markdown(f"""
+active_count = len(st.session_state.saved_strategies)
+
+# Render Fixed HTML Bar directly
+st.markdown(f"""
+<div class="fixed-top-wrapper">
     <div class="brand-header">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 1.3rem;">📊</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.2rem;">📊</span>
             <div>
-                <div style="font-size: 1.02rem; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px;">NIFTY INSTITUTIONAL QUANT TERMINAL</div>
-                <div style="font-size: 0.70rem; color: #38bdf8;">Advanced Delta & OI-Synced Options Analytics & Live Tracker</div>
+                <div style="font-size: 0.95rem; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px;">NIFTY INSTITUTIONAL QUANT TERMINAL</div>
+                <div style="font-size: 0.65rem; color: #38bdf8;">Advanced Delta & OI-Synced Options Analytics & Live Tracker</div>
             </div>
         </div>
-        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-            <span style="font-size: 0.78rem; color: #94a3b8; background: #1e293b; padding: 3px 8px; border-radius: 4px; border: 1px solid #334155;">🕒 {ist_time_str} &nbsp;|&nbsp; Active: <b>{active_count}</b></span>
-            <span style="background: #1e293b; border: 1px solid #334155; color: #10b981; font-size: 0.70rem; font-weight: 700; padding: 3px 8px; border-radius: 4px;">🟢 LIVE NFO API</span>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <span style="font-size: 0.75rem; color: #94a3b8; background: #1e293b; padding: 2px 6px; border-radius: 4px; border: 1px solid #334155;">🕒 {ist_time_str} &nbsp;|&nbsp; Active: <b>{active_count}</b></span>
+            <span style="background: #1e293b; border: 1px solid #334155; color: #10b981; font-size: 0.68rem; font-weight: 700; padding: 2px 6px; border-radius: 4px;">🟢 LIVE NFO API</span>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
 
-    # --- TOP MARKET TICKER BAR ---
-    t1, t2, t3 = st.columns(3)
-    for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty"), (t3, "SENSEX", "sensex")]:
-        with col:
-            d = market_data[key]
-            st.markdown(f"""
-            <div class="index-ticker">
-                <div style="font-weight:700; color:#38bdf8; font-size:0.90rem;">{name}: ₹{d['ltp']:,.2f}</div>
-                <div style="font-size:0.68rem; color:#94a3b8;">O: {d['open']:,.1f} | H: {d['high']:,.1f} | L: {d['low']:,.1f} | C: {d['close']:,.1f}</div>
-            </div>
-            """, unsafe_allow_html=True)
+# --- TOP MARKET TICKER BAR (Scrollable below fixed header) ---
+t1, t2, t3 = st.columns(3)
+for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty"), (t3, "SENSEX", "sensex")]:
+    with col:
+        d = market_data[key]
+        st.markdown(f"""
+        <div class="index-ticker">
+            <div style="font-weight:700; color:#38bdf8; font-size:0.90rem;">{name}: ₹{d['ltp']:,.2f}</div>
+            <div style="font-size:0.68rem; color:#94a3b8;">O: {d['open']:,.1f} | H: {d['high']:,.1f} | L: {d['low']:,.1f} | C: {d['close']:,.1f}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # --- COMMAND NAVIGATION & SYNC TOGGLE BAR ---
-    nav_col1, nav_col2 = st.columns([3, 1])
-    with nav_col1:
-        nav_mode = st.radio("Workspace", ["⚡ Quant Terminal", "🛡️ Saved Live Tracker"], horizontal=True, label_visibility="collapsed", key="main_nav_mode")
-    with nav_col2:
-        auto_refresh_on = st.toggle("Sync (10s)", value=True, key="top_sync_toggle")
-
-    st.markdown('</div>', unsafe_allow_html=True)
+# --- COMMAND NAVIGATION & SYNC TOGGLE BAR ---
+nav_col1, nav_col2 = st.columns([3, 1])
+with nav_col1:
+    nav_mode = st.radio("Workspace", ["⚡ Quant Terminal", "🛡️ Saved Live Tracker"], horizontal=True, label_visibility="collapsed", key="main_nav_mode")
+with nav_col2:
+    auto_refresh_on = st.toggle("Sync (10s)", value=True, key="top_sync_toggle")
 
 if auto_refresh_on:
-    st_autorefresh(interval=10 * 1000, key="terminal_sticky_sync_v9")
+    st_autorefresh(interval=10 * 1000, key="terminal_fixed_sync_v10")
+
+st.markdown("<hr style='margin: 4px 0 10px 0; border-color: #1f2937;'>", unsafe_allow_html=True)
 
 # ==============================================================================
 # WORKSPACE A: SAVED LIVE TRACKER
