@@ -103,7 +103,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- PERMANENT FILE STORAGE FOR SAVED STRATEGIES ---
+# --- PERMANENT FILE STORAGE & FLASH POPUP HANDLER ---
 STORAGE_FILE = "saved_strategies.json"
 
 def load_saved_strategies():
@@ -124,6 +124,10 @@ def save_strategies_to_disk(strat_list):
 
 if "saved_strategies" not in st.session_state:
     st.session_state.saved_strategies = load_saved_strategies()
+
+if "flash_msg" in st.session_state and st.session_state.flash_msg:
+    st.toast(st.session_state.flash_msg)
+    st.session_state.flash_msg = None
 
 # --- CREDENTIALS ---
 try:
@@ -342,15 +346,12 @@ def get_live_option_chain_oi(exp_date_str, atm_val):
 
         pcr_live = round(tot_pe_oi / tot_ce_oi, 2)
 
-        # Call Wall = Strike >= ATM with highest Call OI
         otm_ce = {k: v for k, v in ce_oi_map.items() if k >= atm_val}
         call_wall_k = max(otm_ce, key=otm_ce.get) if otm_ce else max(ce_oi_map, key=ce_oi_map.get)
 
-        # Put Wall = Strike <= ATM with highest Put OI
         otm_pe = {k: v for k, v in pe_oi_map.items() if k <= atm_val}
         put_wall_k = max(otm_pe, key=otm_pe.get) if otm_pe else max(pe_oi_map, key=pe_oi_map.get)
 
-        # True Max Pain Calculation across scanned strikes
         min_pain_val = float("inf")
         max_pain_k = atm_val
         for candidate_spot in strikes_scan:
@@ -461,19 +462,18 @@ with nav_col2:
     auto_refresh_on = st.toggle("Sync (10s)", value=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=10 * 1000, key="terminal_refresh_silent_v5")
+    st_autorefresh(interval=10 * 1000, key="terminal_refresh_final_v6")
 
 # ==============================================================================
-# MODE 2: SAVED LIVE TRACKER (EDIT STRIKES + ENTRY PRICES & TELEGRAM ALERTS)
+# MODE 2: SAVED LIVE TRACKER (EXIT REPORT + EDIT STRIKES + FLASH POPUPS)
 # ==============================================================================
 if nav_mode == "🛡️ Saved Live Tracker":
     st.markdown(f"### 🛡️ Live Saved Strategies & Strike Tracker ({len(st.session_state.saved_strategies)})")
     
-    # Telegram Status Bar
     tg_col1, tg_col2 = st.columns([3.5, 1.5])
     with tg_col1:
         if TG_BOT_TOKEN and TG_CHAT_ID:
-            st.caption("📲 **Telegram Live Alerts: ACTIVE** (Target Hit ya Stop-Loss par automatic message jayega)")
+            st.caption("📲 **Telegram Live Alerts: ACTIVE** (Target Hit, Stop-Loss aur Trade Exit report Telegram par jayegi)")
         else:
             st.caption("🔕 **Telegram Alerts: OFF** (Streamlit Secrets mein `TELEGRAM_BOT_TOKEN` aur `TELEGRAM_CHAT_ID` jodein)")
     with tg_col2:
@@ -506,11 +506,13 @@ if nav_mode == "🛡️ Saved Live Tracker":
 
         state_changed = False
         for idx, strat in enumerate(st.session_state.saved_strategies[:]):
-            col_info, col_del = st.columns([5.5, 1])
+            col_info, col_actions = st.columns([5.2, 1.3])
             lot_qty = strat.get("lot_size", 65)
             
             running_pnl_pts = 0.0
             leg_html_rows = ""
+            exit_leg_summary_lines = []
+
             for l_idx, leg in enumerate(strat.get("legs", []), 1):
                 entry_p = float(leg["premium"])
                 tok = str(leg.get("token", ""))
@@ -534,6 +536,9 @@ if nav_mode == "🛡️ Saved Live Tracker":
                     f"Entry: <b>₹{entry_p:.2f}</b> &rarr; Live: <b>₹{curr_p:.2f}</b> &nbsp;|&nbsp; "
                     f"<span style='color:{pnl_col}; font-weight:700;'>{pnl_sign}₹{leg_pnl_rs:,.0f}</span>"
                     f"</div></div>"
+                )
+                exit_leg_summary_lines.append(
+                    f"• {leg['action']} {leg['readable']}: ₹{entry_p:.2f} → ₹{curr_p:.2f} ({pnl_sign}₹{leg_pnl_rs:,.0f})"
                 )
 
             total_running_pnl = running_pnl_pts * lot_qty
@@ -564,7 +569,7 @@ if nav_mode == "🛡️ Saved Live Tracker":
                 </div>
                 """, unsafe_allow_html=True)
 
-                # --- MANUAL STRIKE & ENTRY PRICE EDITOR (MATCH KITE EXECUTION) ---
+                # --- MANUAL STRIKE & ENTRY PRICE EDITOR ---
                 with st.expander(f"✏️ Edit Strikes & Entry Prices — #{idx+1} {strat['name']}", expanded=False):
                     edit_cols = st.columns(len(strat.get("legs", [])))
                     updated_legs_data = []
@@ -594,8 +599,6 @@ if nav_mode == "🛡️ Saved Live Tracker":
                         for l_i, (n_strike, n_prem) in enumerate(updated_legs_data):
                             old_leg = st.session_state.saved_strategies[idx]["legs"][l_i]
                             o_type = old_leg["type"]
-                            
-                            # Auto-lookup exact Angel One Token for the new Strike
                             matched_row = nfo_df[
                                 (nfo_df["strike_int"] == int(n_strike)) & 
                                 (nfo_df["opt_type"] == o_type) &
@@ -603,7 +606,6 @@ if nav_mode == "🛡️ Saved Live Tracker":
                             ]
                             if not matched_row.empty:
                                 old_leg["token"] = str(matched_row.iloc[0]["token"])
-                            
                             old_leg["strike"] = int(n_strike)
                             old_leg["premium"] = float(n_prem)
                             old_leg["readable"] = f"NIFTY {exp_str} {int(n_strike)} {o_type}"
@@ -611,14 +613,35 @@ if nav_mode == "🛡️ Saved Live Tracker":
 
                         st.session_state.saved_strategies[idx]["last_alert_state"] = "HOLD"
                         save_strategies_to_disk(st.session_state.saved_strategies)
-                        st.success("✅ Strikes, Tokens & Entry Prices updated!")
+                        st.session_state.flash_msg = "✅ Updated Strikes & Entry Prices Saved!"
                         st.rerun()
             
-            with col_del:
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("🗑️ Delete", key=f"del_strat_{idx}"):
+            with col_actions:
+                st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
+                # 1. EXIT BUTTON (CALCULATES FINAL P&L + SENDS TELEGRAM REPORT)
+                if st.button("🚪 Exit Trade", key=f"exit_strat_{idx}", use_container_width=True):
+                    result_badge = "🟢 PROFIT BOOKED" if total_running_pnl >= 0 else "🔴 LOSS BOOKED"
+                    legs_report = "\n".join(exit_leg_summary_lines)
+                    exit_msg = (
+                        f"🚪 <b>TRADE EXITED — {result_badge}</b>\n"
+                        f"Strategy: <b>{strat['name']} ({strat['expiry']})</b>\n"
+                        f"Entry Spot: ₹{strat['entry_spot']:,.2f} → Exit Spot: ₹{live_spot:,.2f}\n"
+                        f"Net Points: <b>{running_pnl_pts:+.2f} pts</b> (Lot: {lot_qty})\n"
+                        f"Final Realized P&L: <b>{tot_sign}₹{total_running_pnl:,.0f}</b>\n\n"
+                        f"<b>Leg-Wise Breakdown:</b>\n{legs_report}\n\n"
+                        f"⏰ Exit Time: {ist_time_str}"
+                    )
+                    send_telegram_alert(exit_msg)
                     st.session_state.saved_strategies.pop(idx)
                     save_strategies_to_disk(st.session_state.saved_strategies)
+                    st.session_state.flash_msg = f"🚪 Trade Exited ({tot_sign}₹{total_running_pnl:,.0f}) & Sent to Telegram!"
+                    st.rerun()
+
+                # 2. DELETE BUTTON
+                if st.button("🗑️ Delete", key=f"del_strat_{idx}", use_container_width=True):
+                    st.session_state.saved_strategies.pop(idx)
+                    save_strategies_to_disk(st.session_state.saved_strategies)
+                    st.session_state.flash_msg = "🗑️ Strategy Deleted!"
                     st.rerun()
 
             # Live Decision Engine + Anti-Spam Telegram Trigger
@@ -745,7 +768,6 @@ else:
             {"type": "CE", "action": "BUY",  "strike": atm_strike + 200, "note": "Upside Hedge Wing"}
         ]
     else:
-        # Ensure minimum 100-pt buffer on wings if OI wall is very close to ATM
         safe_put_sell = min(put_wall, atm_strike - 100)
         safe_call_sell = max(call_wall, atm_strike + 100)
         strat_name = "Short Iron Condor (Live OI-Synced)"
@@ -790,7 +812,6 @@ else:
         if tok:
             tokens_to_fetch.append(tok)
 
-    # Reuse already fetched LTPs from OI scan first, fetch any missing wing tokens
     live_ltp_map = dict(oi_data.get("ltp_dict", {}))
     missing_tokens = [t for t in tokens_to_fetch if t not in live_ltp_map or live_ltp_map[t] <= 0]
     if missing_tokens:
@@ -950,7 +971,7 @@ else:
                     f"{legs_txt}\n"
                     f"Max Profit: ₹{max_profit_lot:,.0f} | Max Risk: ₹{max_loss_lot:,.0f}"
                 )
-            st.success("✅ Strategy + Strike Prices permanently save ho gaye hain!")
+            st.session_state.flash_msg = "✅ Strategy Saved to Live Tracker!"
             st.rerun()
 
         st.caption(f"🔒 Margin Safe: BUY orders sorted first | Synced: {ist_time_str}")
