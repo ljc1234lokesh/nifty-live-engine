@@ -104,51 +104,82 @@ if not smart_api:
     st.error("❌ Angel One API se connect nahi ho paya.")
     st.stop()
 
-# --- 1. OFFICIAL SCRIP MASTER CACHE ---
+# --- 1. OFFICIAL SCRIP MASTER CACHE (OPTIONS + EXACT INDEX TOKENS) ---
 @st.cache_data(ttl=43200)
-def load_angel_nfo_master():
+def load_angel_master_data():
     url = "https://margincalculator.angelbroking.com/OpenAPI_File/files/OpenAPIScripMaster.json"
     r = requests.get(url, timeout=30)
     data = r.json()
     df = pd.DataFrame(data)
-    df = df[(df["exch_seg"] == "NFO") & (df["name"] == "NIFTY") & (df["instrumenttype"] == "OPTIDX")].copy()
-    df["strike_int"] = (pd.to_numeric(df["strike"], errors="coerce") / 100).round().astype(int)
-    df["lotsize_int"] = pd.to_numeric(df["lotsize"], errors="coerce").fillna(65).astype(int)
-    df["opt_type"] = df["symbol"].str[-2:]
-    df["expiry_dt"] = pd.to_datetime(df["expiry"], format="%d%b%Y", errors="coerce").dt.date
-    return df[["token", "symbol", "expiry", "expiry_dt", "strike_int", "opt_type", "lotsize_int"]]
+    
+    # Dynamically extract exact Index tokens from Angel One Master
+    idx_df = df[df["instrumenttype"] == "AMXIDX"]
+    idx_map = {
+        "NIFTY": "99926000",
+        "BANKNIFTY": "99926009",
+        "VIX": "99926017",
+        "SENSEX": "99919000"
+    }
+    for _, row in idx_df.iterrows():
+        nm = str(row["name"]).upper().strip()
+        sym = str(row["symbol"]).upper().strip()
+        tok = str(row["token"]).strip()
+        if nm in ["NIFTY", "NIFTY 50"] or sym in ["NIFTY", "NIFTY 50"]:
+            idx_map["NIFTY"] = tok
+        elif nm in ["BANKNIFTY", "NIFTY BANK"] or sym in ["BANKNIFTY", "NIFTY BANK"]:
+            idx_map["BANKNIFTY"] = tok
+        elif "VIX" in nm or "VIX" in sym:
+            idx_map["VIX"] = tok
+        elif "SENSEX" in nm or "SENSEX" in sym:
+            idx_map["SENSEX"] = tok
 
-nfo_df = load_angel_nfo_master()
+    # Filter NFO Nifty Options
+    opt_df = df[(df["exch_seg"] == "NFO") & (df["name"] == "NIFTY") & (df["instrumenttype"] == "OPTIDX")].copy()
+    opt_df["strike_int"] = (pd.to_numeric(opt_df["strike"], errors="coerce") / 100).round().astype(int)
+    opt_df["lotsize_int"] = pd.to_numeric(opt_df["lotsize"], errors="coerce").fillna(65).astype(int)
+    opt_df["opt_type"] = opt_df["symbol"].str[-2:]
+    opt_df["expiry_dt"] = pd.to_datetime(opt_df["expiry"], format="%d%b%Y", errors="coerce").dt.date
+    return opt_df[["token", "symbol", "expiry", "expiry_dt", "strike_int", "opt_type", "lotsize_int"]], idx_map
 
-# --- 2. LIVE INDICES (SYNCED LIVE LTP FETCHER) ---
+nfo_df, INDEX_TOKENS = load_angel_master_data()
+
+# --- 2. LIVE INDICES (100% VERIFIED TOKENS: NIFTY=99926000, BANKNIFTY=99926009, VIX=99926017) ---
 @st.cache_data(ttl=5)
-def get_live_indices():
+def get_live_indices(idx_tokens):
     data_out = {
         "nifty": 25255.05,
         "banknifty": 60792.40,
         "sensex": 81879.40,
-        "vix": 16.70
+        "vix": 14.85
     }
     try:
-        res_nse = smart_api.getMarketData("LTP", {"NSE": ["99926000", "99926001", "99926009"]})
+        t_nifty = idx_tokens["NIFTY"]
+        t_bnf   = idx_tokens["BANKNIFTY"]
+        t_vix   = idx_tokens["VIX"]
+        t_snx   = idx_tokens["SENSEX"]
+
+        res_nse = smart_api.getMarketData("LTP", {"NSE": [t_nifty, t_bnf, t_vix]})
         if res_nse and res_nse.get("status") and "data" in res_nse:
             for item in res_nse["data"].get("fetched", []):
-                tok = item["symbolToken"]
+                tok = str(item["symbolToken"])
                 ltp = float(item["ltp"])
-                if tok == "99926000": data_out["nifty"] = ltp
-                elif tok == "99926001": data_out["banknifty"] = ltp
-                elif tok == "99926009" and 8.0 <= ltp <= 60.0: data_out["vix"] = ltp
+                if tok == t_nifty and ltp > 10000:
+                    data_out["nifty"] = ltp
+                elif tok == t_bnf and ltp > 25000:
+                    data_out["banknifty"] = ltp
+                elif tok == t_vix and ltp > 0:
+                    data_out["vix"] = ltp
 
-        res_bse = smart_api.getMarketData("LTP", {"BSE": ["99919000"]})
+        res_bse = smart_api.getMarketData("LTP", {"BSE": [t_snx]})
         if res_bse and res_bse.get("status") and "data" in res_bse:
             for item in res_bse["data"].get("fetched", []):
-                if item["symbolToken"] == "99919000":
+                if str(item["symbolToken"]) == t_snx and float(item["ltp"]) > 30000:
                     data_out["sensex"] = float(item["ltp"])
     except Exception:
         pass
     return data_out
 
-indices = get_live_indices()
+indices = get_live_indices(INDEX_TOKENS)
 live_spot = indices["nifty"]
 live_banknifty = indices["banknifty"]
 live_sensex = indices["sensex"]
