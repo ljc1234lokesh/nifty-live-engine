@@ -52,12 +52,25 @@ div[data-testid="stStatusWidget"] { display: none !important; }
     margin-bottom: 2px;
 }
 
-/* --- FORCE BRIGHT WHITE ON ALL STREAMLIT RADIO / LABELS / TABS --- */
-.stRadio label, .stRadio div, div[data-baseweb="radio"] *, span, label {
-    color: #ffffff !important;
+/* --- SPECIFIC FIX FOR RADIO BUTTONS & EXPIRIES (NO BUTTON HIDING) --- */
+.stRadio label p, div[data-baseweb="radio"] div {
+    color: #f8fafc !important;
+    font-weight: 600 !important;
 }
 div[data-testid="stMarkdownContainer"] p {
     color: #f8fafc !important;
+}
+
+/* Ensure standard Streamlit buttons remain normal and visible */
+.stButton button {
+    background-color: #1f2937 !important;
+    color: #f8fafc !important;
+    border: 1px solid #374151 !important;
+}
+.stButton button:hover {
+    background-color: #374151 !important;
+    color: #38bdf8 !important;
+    border-color: #38bdf8 !important;
 }
 
 /* 5-Card OI & Sentiment Strip */
