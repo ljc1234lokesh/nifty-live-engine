@@ -160,3 +160,18 @@ div[data-testid="stMarkdownContainer"] p {
     font-size: 0.84rem;
     color: #f8fafc !important;
 }
+
+/* --- Ticker LTP Direct CSS Classes --- */
+.ticker-ltp-green {
+    color: #34d399 !important;
+    font-weight: 700 !important;
+}
+.ticker-ltp-red {
+    color: #f87171 !important;
+    font-weight: 700 !important;
+}
+.ticker-change {
+    color: #94a3b8 !important;
+    font-weight: normal !important;
+    font-size: 0.8rem !important;
+}
