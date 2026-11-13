@@ -1,13 +1,46 @@
 import json
 import os
 import datetime
+import base64
+import requests
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+import streamlit as st
 
 STORAGE_FILE = "saved_strategies.json"
 
+def get_github_repo_credentials():
+    try:
+        token = st.secrets.get("GITHUB_TOKEN", "")
+        repo = st.secrets.get("GITHUB_REPO", "")
+        user = st.secrets.get("GITHUB_USER", "")
+        if token and repo and user:
+            return token, repo, user
+    except Exception:
+        pass
+    return None, None, None
+
 def load_saved_strategies():
+    # 1. Try loading from GitHub API first for permanent sync
+    token, repo, user = get_github_repo_credentials()
+    if token and repo and user:
+        try:
+            url = f"https://api.github.com/repos/{user}/{repo}/contents/{STORAGE_FILE}"
+            headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+            r = requests.get(url, headers=headers, timeout=5)
+            if r.status_code == 200:
+                file_data = r.json()
+                decoded_content = base64.b64decode(file_data["content"]).decode("utf-8")
+                strat_list = json.loads(decoded_content)
+                # Backup locally as well
+                with open(STORAGE_FILE, "w") as f:
+                    json.dump(strat_list, f, indent=2)
+                return strat_list
+        except Exception:
+            pass
+
+    # 2. Fallback to local file if GitHub fails
     if os.path.exists(STORAGE_FILE):
         try:
             with open(STORAGE_FILE, "r") as f:
@@ -17,11 +50,40 @@ def load_saved_strategies():
     return []
 
 def save_strategies_to_disk(strat_list):
+    # Always save locally first
     try:
         with open(STORAGE_FILE, "w") as f:
             json.dump(strat_list, f, indent=2)
     except Exception:
         pass
+
+    # Push to GitHub API permanently
+    token, repo, user = get_github_repo_credentials()
+    if token and repo and user:
+        try:
+            url = f"https://api.github.com/repos/{user}/{repo}/contents/{STORAGE_FILE}"
+            headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+            
+            # Get existing file SHA if it exists (required by GitHub API to update files)
+            sha = None
+            r_get = requests.get(url, headers=headers, timeout=5)
+            if r_get.status_code == 200:
+                sha = r_get.json().get("sha")
+
+            json_str = json.dumps(strat_list, indent=2)
+            content_encoded = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
+
+            payload = {
+                "message": "Auto-sync saved strategies via Quant Terminal",
+                "content": content_encoded,
+                "branch": "main"
+            }
+            if sha:
+                payload["sha"] = sha
+
+            requests.put(url, headers=headers, json=payload, timeout=8)
+        except Exception:
+            pass
 
 def get_ist_clock_status():
     utc_now = datetime.datetime.now(datetime.timezone.utc)
@@ -155,3 +217,4 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
         "rr": rr_ratio,
         "fig": fig
     }
+    
