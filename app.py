@@ -113,10 +113,10 @@ nav_col1, nav_col2 = st.columns([3, 1])
 with nav_col1:
     nav_mode = st.radio("Workspace", ["⚡ Quant Terminal", "🛡️ Saved Live Tracker"], horizontal=True, label_visibility="collapsed", key="main_nav_mode")
 with nav_col2:
-    auto_refresh_on = st.toggle("Sync (10s)", value=True, key="top_sync_toggle")
+    auto_refresh_on = st.toggle("Sync (7s)", value=True, key="top_sync_toggle")
 
 if auto_refresh_on:
-    st_autorefresh(interval=10 * 1000, key="terminal_fixed_sync_v10")
+    st_autorefresh(interval=7 * 1000, key="terminal_fixed_sync_v10")
 
 st.markdown("<hr style='margin: 4px 0 10px 0; border-color: #1f2937;'>", unsafe_allow_html=True)
 
