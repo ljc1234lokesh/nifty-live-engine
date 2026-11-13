@@ -1,1 +1,54 @@
-[]
+[
+  {
+    "name": "Short Iron Butterfly (ATM Pinning)",
+    "expiry": "17-Nov",
+    "lot_size": 65,
+    "legs": [
+      {
+        "type": "PE",
+        "action": "BUY",
+        "strike": 24900,
+        "token": "45383",
+        "premium": 52.5,
+        "readable": "NIFTY 17-Nov 24900 PE",
+        "kite_sym": "NIFTY26N1724900PE",
+        "note": "Downside Hedge Wing"
+      },
+      {
+        "type": "PE",
+        "action": "SELL",
+        "strike": 25100,
+        "token": "45391",
+        "premium": 123.4,
+        "readable": "NIFTY 17-Nov 25100 PE",
+        "kite_sym": "NIFTY26N1725100PE",
+        "note": "ATM Put Sell (25100 Pin)"
+      },
+      {
+        "type": "CE",
+        "action": "SELL",
+        "strike": 25100,
+        "token": "45390",
+        "premium": 150.75,
+        "readable": "NIFTY 17-Nov 25100 CE",
+        "kite_sym": "NIFTY26N1725100CE",
+        "note": "ATM Call Sell (25100 Pin)"
+      },
+      {
+        "type": "CE",
+        "action": "BUY",
+        "strike": 25300,
+        "token": "45402",
+        "premium": 69.55,
+        "readable": "NIFTY 17-Nov 25300 CE",
+        "kite_sym": "NIFTY26N1725300CE",
+        "note": "Upside Hedge Wing"
+      }
+    ],
+    "max_profit": 9803.510869565203,
+    "max_loss": 3113.5000000000023,
+    "entry_spot": 25106.75,
+    "time": "14:34:22 IST",
+    "last_alert_state": "HOLD"
+  }
+]
