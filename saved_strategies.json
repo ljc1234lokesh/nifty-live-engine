@@ -50,5 +50,37 @@
     "entry_spot": 25214.85,
     "time": "09:48:37 IST",
     "last_alert_state": "HOLD"
+  },
+  {
+    "name": "Bear Call Credit Spread",
+    "expiry": "17-Nov",
+    "lot_size": 65,
+    "legs": [
+      {
+        "type": "CE",
+        "action": "SELL",
+        "strike": 25200,
+        "token": "45394",
+        "premium": 147.55,
+        "readable": "NIFTY 17-Nov 25200 CE",
+        "kite_sym": "NIFTY26N1725200CE",
+        "note": "Live Call Wall (25200 OI)"
+      },
+      {
+        "type": "CE",
+        "action": "BUY",
+        "strike": 25400,
+        "token": "45406",
+        "premium": 72.85,
+        "readable": "NIFTY 17-Nov 25400 CE",
+        "kite_sym": "NIFTY26N1725400CE",
+        "note": "Upside Protection Wing"
+      }
+    ],
+    "max_profit": 4855.500000000001,
+    "max_loss": 8144.500000000005,
+    "entry_spot": 25173.6,
+    "time": "11:21:47 IST",
+    "last_alert_state": "HOLD"
   }
 ]
