@@ -9,7 +9,7 @@
         "action": "BUY",
         "strike": 25000,
         "token": "45387",
-        "premium": 80.15,
+        "premium": 83.0,
         "readable": "NIFTY 17-Nov 25000 PE",
         "kite_sym": "NIFTY26N1725000PE",
         "note": "Downside Hedge Wing"
@@ -19,7 +19,7 @@
         "action": "SELL",
         "strike": 25200,
         "token": "45395",
-        "premium": 159.4,
+        "premium": 163.1,
         "readable": "NIFTY 17-Nov 25200 PE",
         "kite_sym": "NIFTY26N1725200PE",
         "note": "ATM Put Sell (25200 Pin)"
@@ -29,7 +29,7 @@
         "action": "SELL",
         "strike": 25200,
         "token": "45394",
-        "premium": 174.35,
+        "premium": 169.55,
         "readable": "NIFTY 17-Nov 25200 CE",
         "kite_sym": "NIFTY26N1725200CE",
         "note": "ATM Call Sell (25200 Pin)"
@@ -39,7 +39,7 @@
         "action": "BUY",
         "strike": 25400,
         "token": "45406",
-        "premium": 91.75,
+        "premium": 88.6,
         "readable": "NIFTY 17-Nov 25400 CE",
         "kite_sym": "NIFTY26N1725400CE",
         "note": "Upside Hedge Wing"
