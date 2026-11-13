@@ -61,69 +61,47 @@ def load_angel_master_data():
     opt_df["expiry_dt"] = pd.to_datetime(opt_df["expiry"], format="%d%b%Y", errors="coerce").dt.date
     return opt_df[["token", "symbol", "expiry", "expiry_dt", "strike_int", "opt_type", "lotsize_int"]], idx_map
 
-@st.cache_data(ttl=60, show_spinner=False)
-def get_daily_ohlc_cached(_smart_api, idx_tokens):
-    ohlc = {
-        "nifty": {"open": 25213.50, "high": 25384.80, "low": 25142.95, "close": 25255.05},
-        "banknifty": {"open": 60801.85, "high": 61406.35, "low": 60723.10, "close": 60792.40},
-        "sensex": {"open": 81762.27, "high": 82325.61, "low": 81576.15, "close": 81879.40}
-    }
-    to_date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    from_date = datetime.datetime.now().strftime("%Y-%m-%d 09:00")
-    for idx_key, tok_val, exch in [
-        ("nifty", idx_tokens["NIFTY"], "NSE"),
-        ("banknifty", idx_tokens["BANKNIFTY"], "NSE"),
-        ("sensex", idx_tokens["SENSEX"], "BSE")
-    ]:
-        try:
-            candle_req = {
-                "exchange": exch,
-                "symboltoken": tok_val,
-                "interval": "ONE_DAY",
-                "fromdate": from_date,
-                "todate": to_date
-            }
-            c_res = _smart_api.getCandleData(candle_req)
-            if c_res and c_res.get("status") and "data" in c_res and len(c_res["data"]) > 0:
-                latest_candle = c_res["data"][-1]
-                ohlc[idx_key] = {
-                    "open": float(latest_candle[1]),
-                    "high": float(latest_candle[2]),
-                    "low": float(latest_candle[3]),
-                    "close": float(latest_candle[4])
-                }
-        except Exception:
-            pass
-    return ohlc
-
-@st.cache_data(ttl=5, show_spinner=False)
+@st.cache_data(ttl=30, show_spinner=False)
 def get_comprehensive_indices(_smart_api, idx_tokens):
-    ohlc_data = get_daily_ohlc_cached(_smart_api, idx_tokens)
     out = {
-        "nifty": {"ltp": 25243.30, **ohlc_data["nifty"]},
-        "banknifty": {"ltp": 61281.05, **ohlc_data["banknifty"]},
-        "sensex": {"ltp": 81871.62, **ohlc_data["sensex"]},
+        "nifty": {"ltp": 25243.30, "open": 25213.50, "high": 25384.80, "low": 25142.95, "close": 25255.05},
+        "banknifty": {"ltp": 61281.05, "open": 60801.85, "high": 61406.35, "low": 60723.10, "close": 60792.40},
+        "sensex": {"ltp": 81871.62, "open": 81762.27, "high": 82325.61, "low": 81576.15, "close": 81879.40},
         "vix": 16.88
     }
     try:
         t_nifty, t_bnf, t_vix, t_snx = idx_tokens["NIFTY"], idx_tokens["BANKNIFTY"], idx_tokens["VIX"], idx_tokens["SENSEX"]
-        res_nse = _smart_api.getMarketData("LTP", {"NSE": [t_nifty, t_bnf, t_vix]})
+        
+        # Fetch full market quote for NSE indices to get open, high, low, close directly
+        res_nse = _smart_api.getMarketData("FULL", {"NSE": [t_nifty, t_bnf, t_vix]})
         if res_nse and res_nse.get("status") and "data" in res_nse:
             for item in res_nse["data"].get("fetched", []):
-                tok = str(item["symbolToken"])
-                ltp = float(item["ltp"])
+                tok = str(item.get("symbolToken"))
+                ltp = float(item.get("ltp", 0))
+                opn = float(item.get("open", ltp))
+                hi = float(item.get("high", ltp))
+                lo = float(item.get("low", ltp))
+                cl = float(item.get("close", ltp))
+                
                 if tok == t_nifty and ltp > 10000:
-                    out["nifty"]["ltp"] = ltp
+                    out["nifty"] = {"ltp": ltp, "open": opn if opn > 0 else ltp, "high": hi if hi > 0 else ltp, "low": lo if lo > 0 else ltp, "close": cl if cl > 0 else ltp}
                 elif tok == t_bnf and ltp > 25000:
-                    out["banknifty"]["ltp"] = ltp
+                    out["banknifty"] = {"ltp": ltp, "open": opn if opn > 0 else ltp, "high": hi if hi > 0 else ltp, "low": lo if lo > 0 else ltp, "close": cl if cl > 0 else ltp}
                 elif tok == t_vix and ltp > 0:
                     out["vix"] = ltp
 
-        res_bse = _smart_api.getMarketData("LTP", {"BSE": [t_snx]})
+        # Fetch full market quote for BSE Sensex
+        res_bse = _smart_api.getMarketData("FULL", {"BSE": [t_snx]})
         if res_bse and res_bse.get("status") and "data" in res_bse:
             for item in res_bse["data"].get("fetched", []):
-                if str(item["symbolToken"]) == t_snx:
-                    out["sensex"]["ltp"] = float(item["ltp"])
+                if str(item.get("symbolToken")) == t_snx:
+                    ltp = float(item.get("ltp", 0))
+                    opn = float(item.get("open", ltp))
+                    hi = float(item.get("high", ltp))
+                    lo = float(item.get("low", ltp))
+                    cl = float(item.get("close", ltp))
+                    if ltp > 10000:
+                        out["sensex"] = {"ltp": ltp, "open": opn if opn > 0 else ltp, "high": hi if hi > 0 else ltp, "low": lo if lo > 0 else ltp, "close": cl if cl > 0 else ltp}
     except Exception:
         pass
     return out
@@ -213,3 +191,4 @@ def fetch_batch_ltps(smart_api, tokens):
     except Exception:
         pass
     return ltp_map
+    
