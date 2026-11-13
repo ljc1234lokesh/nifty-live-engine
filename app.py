@@ -83,7 +83,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- TOP MARKET TICKER BAR (Only LTP Colorized) ---
+# --- TOP MARKET TICKER BAR (Controlled via CSS Classes) ---
 t1, t2, t3 = st.columns(3)
 for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty"), (t3, "SENSEX", "sensex")]:
     with col:
@@ -94,15 +94,15 @@ for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty")
         diff = ltp - close
         pct = (diff / close) * 100 if close > 0 else 0.0
         
-        # Only LTP color gets red/green
-        ltp_color = "#34d399" if diff >= 0 else "#f87171"
+        # Select CSS class based on market movement
+        css_class = "ticker-ltp-green" if diff >= 0 else "ticker-ltp-red"
         sign_str = "+" if diff >= 0 else ""
         
         st.markdown(f"""
         <div style="background-color: #111827; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 8px; text-align: center; margin-bottom: 2px;">
             <div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">
-                {name}: <span style="color: {ltp_color} !important;">₹{ltp:,.2f}</span> 
-                <span style="color: #94a3b8 !important; font-weight: normal; font-size: 0.8rem;">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>
+                {name}: <span class="{css_class}">₹{ltp:,.2f}</span> 
+                <span class="ticker-change">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>
             </div>
             <div style="font-size: 0.65rem; color: #94a3b8; margin-top: 2px;">O: {d['open']:,.1f} | H: {d['high']:,.1f} | L: {d['low']:,.1f} | C: {close:,.1f}</div>
         </div>
