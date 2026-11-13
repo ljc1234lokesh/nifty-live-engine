@@ -83,7 +83,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- TOP MARKET TICKER BAR (With Dynamic Green/Red LTP & Change %) ---
+# --- TOP MARKET TICKER BAR (Force Red/Green Color) ---
 t1, t2, t3 = st.columns(3)
 for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty"), (t3, "SENSEX", "sensex")]:
     with col:
@@ -94,17 +94,16 @@ for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty")
         diff = ltp - close
         pct = (diff / close) * 100 if close > 0 else 0.0
         
-        # Color logic: Green if LTP >= Close, Red if LTP < Close
-        col_code = "#10b981" if diff >= 0 else "#ef4444"
+        # Exact Hex Colors: Bright Green for positive, Bright Red for negative
+        col_code = "#34d399" if diff >= 0 else "#f87171"
         sign_str = "+" if diff >= 0 else ""
         
         st.markdown(f"""
-        <div class="index-ticker">
-            <div style="font-weight:700; font-size:0.88rem;">
-                {name}: <span style="color:{col_code} !important;">₹{ltp:,.2f}</span> 
-                <span style="font-size:0.72rem; color:{col_code} !important;">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>
+        <div class="index-ticker" style="color: #f8fafc !important;">
+            <div style="font-weight:700; font-size:0.88rem; color: #f8fafc !important;">
+                {name}: <span style="color: {col_code} !important; font-weight: 700;">₹{ltp:,.2f} {sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>
             </div>
-            <div style="font-size:0.65rem; color:#94a3b8; margin-top:2px;">O: {d['open']:,.1f} | H: {d['high']:,.1f} | L: {d['low']:,.1f} | C: {close:,.1f}</div>
+            <div style="font-size:0.65rem; color:#94a3b8 !important; margin-top:2px;">O: {d['open']:,.1f} | H: {d['high']:,.1f} | L: {d['low']:,.1f} | C: {close:,.1f}</div>
         </div>
         """, unsafe_allow_html=True)
 
