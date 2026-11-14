@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 from streamlit_autorefresh import st_autorefresh
 import datetime
 import os
@@ -60,11 +59,9 @@ api_badge_cls = "col-green" if smart_api else "col-amber"
 api_status_badge = "🟢 LIVE NFO API" if smart_api else "🟡 SIMULATED MODE"
 
 # ==============================================================================
-# FROZEN TOP COMMAND HEADER (DOES NOT SCROLL)
+# FIXED TOP COMMAND HEADER (LOCKED TO VIEWPORT TOP)
 # ==============================================================================
 with st.container():
-    st.markdown('<div class="sticky-marker" style="display:none;"></div>', unsafe_allow_html=True)
-
     # 1. Main Title Header
     st.markdown(
         f'<div class="top-bar" style="border:1px solid; border-radius:8px; padding:10px 14px; margin-bottom:6px;">'
@@ -118,38 +115,7 @@ with st.container():
     with nav_col3:
         auto_refresh_on = st.toggle("Sync (7s)", value=True, key="top_sync_toggle")
 
-# --- FORCE STICKY FREEZE VIA JAVASCRIPT (WORKS ON ALL STREAMLIT VERSIONS & MOBILE) ---
-components.html(
-    """
-    <script>
-    const doc = window.parent.document;
-    function lockTopHeader() {
-        const marker = doc.querySelector('.sticky-marker');
-        if (!marker) return;
-        const container = marker.closest('[data-testid="stVerticalBlock"]');
-        if (container) {
-            container.classList.add('frozen-top-header');
-            let parent = container.parentElement;
-            while (parent && parent !== doc.body) {
-                const style = window.parent.getComputedStyle(parent);
-                if (style.overflow === 'hidden' || style.overflowY === 'hidden' || style.overflow === 'auto') {
-                    parent.style.overflow = 'visible';
-                    parent.style.overflowY = 'visible';
-                }
-                parent = parent.parentElement;
-            }
-        }
-    }
-    lockTopHeader();
-    setTimeout(lockTopHeader, 500);
-    setTimeout(lockTopHeader, 1500);
-    </script>
-    """,
-    height=0,
-    width=0
-)
-
-# --- LIGHT MODE VARIABLE OVERRIDE (PRESERVES ALL SEMANTIC COLORS) ---
+# --- LIGHT MODE VARIABLE OVERRIDE ---
 if light_mode:
     st.markdown("""
     <style>
@@ -172,7 +138,7 @@ if light_mode:
     """, unsafe_allow_html=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=7 * 1000, key="terminal_fixed_sync_v14")
+    st_autorefresh(interval=7 * 1000, key="terminal_fixed_sync_v15")
 
 # ==============================================================================
 # WORKSPACE 1: QUANT TERMINAL (STRATEGY BUILDER & ANALYTICS)
@@ -367,7 +333,7 @@ else:
             st.warning("⚠️ Check TELEGRAM_BOT_TOKEN & TELEGRAM_CHAT_ID in Secrets.")
 
     if not st.session_state.saved_strategies:
-        st.info("Abhi koi active strategy nahi hai. '⚡ Quant Terminal' tab se koi strategy deploy karein.")
+        st.info("Abhi koi active strategy nahi hai. '⚡ Quant Terminal' tab से कोई strategy deploy करें.")
     else:
         all_tokens = [lg.get("token", "") for s in st.session_state.saved_strategies for lg in s.get("legs", []) if lg.get("token")]
         tracker_ltps = fetch_batch_ltps(smart_api, all_tokens)
