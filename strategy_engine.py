@@ -4,7 +4,7 @@ import datetime
 import base64
 import requests
 import numpy as np
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 from scipy.stats import norm
 import streamlit as st
 
@@ -22,7 +22,6 @@ def get_github_repo_credentials():
     return None, None, None
 
 def load_saved_strategies():
-    # 1. Try loading from GitHub API first for permanent sync
     token, repo, user = get_github_repo_credentials()
     if token and repo and user:
         try:
@@ -33,14 +32,12 @@ def load_saved_strategies():
                 file_data = r.json()
                 decoded_content = base64.b64decode(file_data["content"]).decode("utf-8")
                 strat_list = json.loads(decoded_content)
-                # Backup locally as well
                 with open(STORAGE_FILE, "w") as f:
                     json.dump(strat_list, f, indent=2)
                 return strat_list
         except Exception:
             pass
 
-    # 2. Fallback to local file if GitHub fails
     if os.path.exists(STORAGE_FILE):
         try:
             with open(STORAGE_FILE, "r") as f:
@@ -50,21 +47,18 @@ def load_saved_strategies():
     return []
 
 def save_strategies_to_disk(strat_list):
-    # Always save locally first
     try:
         with open(STORAGE_FILE, "w") as f:
             json.dump(strat_list, f, indent=2)
     except Exception:
         pass
 
-    # Push to GitHub API permanently
     token, repo, user = get_github_repo_credentials()
     if token and repo and user:
         try:
             url = f"https://api.github.com/repos/{user}/{repo}/contents/{STORAGE_FILE}"
             headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
             
-            # Get existing file SHA if it exists (required by GitHub API to update files)
             sha = None
             r_get = requests.get(url, headers=headers, timeout=5)
             if r_get.status_code == 200:
@@ -164,50 +158,135 @@ def build_strategy_specs(strat_mode_choice, live_spot, atm_strike, live_vix, oi_
             {"type": "CE", "action": "BUY",  "strike": safe_call + 200, "note": "Call Wall Protection Wing"}
         ]
 
-def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_size, display_exp):
+def _bs_option_price(S, K, T, r, sigma, opt_type):
+    if T <= 0:
+        return np.maximum(0.0, S - K) if opt_type == "CE" else np.maximum(0.0, K - S)
+    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    if opt_type == "CE":
+        return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+    else:
+        return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
+def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_size, display_exp, light_mode=False):
     spot_range = np.linspace(live_spot - 800, live_spot + 800, 300)
-    pnl = np.zeros_like(spot_range)
+    pnl_expiry = np.zeros_like(spot_range)
+    pnl_t0 = np.zeros_like(spot_range)
     net_credit = 0.0
+
+    T_years = max(dte_days, 0.5) / 365.0
+    sigma = max(live_vix / 100.0, 0.10)
+    r_rate = 0.065
 
     for leg in display_legs:
         k, prem = leg["strike"], leg["premium"]
         net_credit += prem if leg["action"] == "SELL" else -prem
+        
+        # Expiry intrinsic value
         intrinsic = np.maximum(0, spot_range - k) if leg["type"] == "CE" else np.maximum(0, k - spot_range)
-        pnl += (intrinsic - prem) if leg["action"] == "BUY" else (prem - intrinsic)
+        pnl_expiry += (intrinsic - prem) if leg["action"] == "BUY" else (prem - intrinsic)
 
-    max_profit_lot = np.max(pnl) * lot_size
-    max_loss_lot = abs(np.min(pnl)) * lot_size
+        # T+0 (Today's Theoretical Live Curve anchored to entry premium)
+        theo_at_spot = _bs_option_price(live_spot, k, T_years, r_rate, sigma, leg["type"])
+        theo_curve = _bs_option_price(spot_range, k, T_years, r_rate, sigma, leg["type"])
+        est_live_prem = np.maximum(0.05, prem + (theo_curve - theo_at_spot))
+        pnl_t0 += (est_live_prem - prem) if leg["action"] == "BUY" else (prem - est_live_prem)
 
-    profitable_spots = spot_range[pnl >= 0]
-    lower_be = profitable_spots[0] if len(profitable_spots) > 0 else live_spot - 250
-    upper_be = profitable_spots[-1] if len(profitable_spots) > 0 else live_spot + 250
+    pnl_exp_lot = pnl_expiry * lot_size
+    pnl_t0_lot = pnl_t0 * lot_size
 
-    T_years = dte_days / 365.0
-    sigma = max(live_vix / 100.0, 0.10)
+    max_profit_lot = float(np.max(pnl_exp_lot))
+    max_loss_lot = float(abs(np.min(pnl_exp_lot)))
+
+    profitable_spots = spot_range[pnl_expiry >= 0]
+    lower_be = float(profitable_spots[0]) if len(profitable_spots) > 0 else live_spot - 250
+    upper_be = float(profitable_spots[-1]) if len(profitable_spots) > 0 else live_spot + 250
+
     stdev = live_spot * sigma * np.sqrt(T_years)
-    pop_percent = (norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100
+    pop_percent = float((norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100)
     rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
-    fig, ax = plt.subplots(figsize=(6.8, 3.65), facecolor="#0b0f19")
-    ax.set_facecolor("#111827")
-    ax.plot(spot_range, pnl * lot_size, color="#38bdf8", linewidth=2.2, label="Total P&L (₹)")
-    ax.axhline(0, color="#64748b", linestyle="--", linewidth=0.9)
-    ax.axvline(live_spot, color="#f59e0b", linestyle=":", label=f"Spot ({live_spot:.0f})")
-    ax.axvline(lower_be, color="#94a3b8", linestyle="--", alpha=0.7)
-    ax.axvline(upper_be, color="#94a3b8", linestyle="--", alpha=0.7)
+    # Theme colors based on Night / Light Mode
+    bg_plot = "#ffffff" if light_mode else "#111827"
+    bg_paper = "#f8fafc" if light_mode else "#0b0f19"
+    text_col = "#0f172a" if light_mode else "#e2e8f0"
+    grid_col = "#e2e8f0" if light_mode else "#1f2937"
+    sub_text = "#475569" if light_mode else "#94a3b8"
 
-    ax.fill_between(spot_range, pnl * lot_size, 0, where=(pnl >= 0), color="#10b981", alpha=0.35, interpolate=True)
-    ax.fill_between(spot_range, pnl * lot_size, 0, where=(pnl < 0), color="#ef4444", alpha=0.35, interpolate=True)
+    fig = go.Figure()
 
-    ax.tick_params(colors="#94a3b8", labelsize=8.5)
-    for spine in ax.spines.values():
-        spine.set_color("#1f2937")
+    # Green Profit Fill & Red Loss Fill on Expiry
+    pnl_pos = np.where(pnl_exp_lot >= 0, pnl_exp_lot, 0)
+    pnl_neg = np.where(pnl_exp_lot < 0, pnl_exp_lot, 0)
 
-    ax.set_title(f"Payoff Curve ({display_exp}) | BE: {lower_be:.0f} — {upper_be:.0f}", color="#e2e8f0", fontsize=9.5, pad=8)
-    ax.set_ylabel(f"P&L (₹ / {lot_size} Qty)", color="#94a3b8", fontsize=8.5)
-    ax.grid(True, color="#1f2937", linestyle=":", alpha=0.6)
-    ax.legend(facecolor="#111827", edgecolor="#1f2937", labelcolor="#e2e8f0", loc="upper right", fontsize=8)
-    plt.tight_layout(pad=0.6)
+    fig.add_trace(go.Scatter(
+        x=spot_range, y=pnl_pos, mode="lines", line=dict(width=0),
+        fill="tozeroy", fillcolor="rgba(16, 185, 129, 0.28)",
+        hoverinfo="skip", showlegend=False
+    ))
+    fig.add_trace(go.Scatter(
+        x=spot_range, y=pnl_neg, mode="lines", line=dict(width=0),
+        fill="tozeroy", fillcolor="rgba(239, 68, 68, 0.28)",
+        hoverinfo="skip", showlegend=False
+    ))
+
+    # Main Expiry Payoff Line
+    fig.add_trace(go.Scatter(
+        x=spot_range, y=pnl_exp_lot, mode="lines",
+        name="Expiry P&L",
+        line=dict(color="#10b981", width=2.6),
+        hovertemplate="<b>Expiry P&L:</b> ₹%{y:,.0f}<extra></extra>"
+    ))
+
+    # T+0 Intraday Payoff Line (Sensibull Style)
+    fig.add_trace(go.Scatter(
+        x=spot_range, y=pnl_t0_lot, mode="lines",
+        name="Target Today (T+0)",
+        line=dict(color="#38bdf8" if not light_mode else "#2563eb", width=2, dash="dot"),
+        hovertemplate="<b>Today (T+0) P&L:</b> ₹%{y:,.0f}<extra></extra>"
+    ))
+
+    # Zero Line, Spot Line & Breakeven Lines
+    fig.add_hline(y=0, line_dash="dash", line_color=sub_text, line_width=1)
+    fig.add_vline(x=live_spot, line_dash="dot", line_color="#f59e0b", line_width=1.8,
+                  annotation_text=f"Spot: {live_spot:.0f}", annotation_position="top",
+                  annotation_font=dict(color="#f59e0b", size=10))
+    fig.add_vline(x=lower_be, line_dash="dash", line_color=sub_text, line_width=1,
+                  annotation_text=f"BE: {lower_be:.0f}", annotation_position="bottom left",
+                  annotation_font=dict(color=sub_text, size=9))
+    fig.add_vline(x=upper_be, line_dash="dash", line_color=sub_text, line_width=1,
+                  annotation_text=f"BE: {upper_be:.0f}", annotation_position="bottom right",
+                  annotation_font=dict(color=sub_text, size=9))
+
+    fig.update_layout(
+        title=dict(
+            text=f"<b>Interactive Payoff ({display_exp})</b> | Breakeven: {lower_be:.0f} – {upper_be:.0f}",
+            font=dict(color=text_col, size=12.5), x=0.01, y=0.96
+        ),
+        paper_bgcolor=bg_paper,
+        plot_bgcolor=bg_plot,
+        font=dict(color=text_col, size=11),
+        margin=dict(l=10, r=10, t=38, b=10),
+        height=340,
+        hovermode="x unified",
+        hoverlabel=dict(bgcolor=bg_plot, font_size=11, font_color=text_col, bordercolor=grid_col),
+        xaxis=dict(
+            title="NIFTY Spot Price",
+            gridcolor=grid_col, zeroline=False,
+            tickfont=dict(color=sub_text, size=10),
+            spikemode="across", spikesnap="cursor", spikecolor="#f59e0b", spikethickness=1
+        ),
+        yaxis=dict(
+            title=f"P&L (₹ / {lot_size} Qty)",
+            gridcolor=grid_col, zeroline=False,
+            tickfont=dict(color=sub_text, size=10)
+        ),
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1,
+            bgcolor="rgba(0,0,0,0)", font=dict(color=text_col, size=10)
+        ),
+        dragmode="pan"
+    )
 
     return {
         "net_credit": net_credit,
@@ -217,4 +296,3 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
         "rr": rr_ratio,
         "fig": fig
     }
-    
