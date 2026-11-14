@@ -46,16 +46,26 @@ PASSWORD = st.secrets.get("ANGEL_PASSWORD", "")
 TOTP_SECRET = st.secrets.get("ANGEL_TOTP_SECRET", "")
 
 smart_api = get_angel_session(API_KEY, CLIENT_CODE, PASSWORD, TOTP_SECRET)
-nfo_df, idx_tokens = load_angel_master_data()
+if smart_api is None:
+    st.error("Angel One session unavailable. No simulated quotes will be shown. Verify API secrets and login.")
+    st.stop()
+try:
+    nfo_df, idx_tokens = load_angel_master_data()
+except Exception as exc:
+    st.error(f"Instrument master unavailable: {exc}")
+    st.stop()
 market_data = get_comprehensive_indices(smart_api, idx_tokens)
 
+if not market_data["nifty"]["ltp"] or not market_data["vix"]:
+    st.error("Live NIFTY/VIX quote unavailable. Strategy pricing and P&L are paused (no fallback prices).")
+    st.stop()
 live_spot = market_data["nifty"]["ltp"]
 live_vix = market_data["vix"]
 atm_strike = int(round(live_spot / 50.0) * 50)
 
 ist_now, ist_time_str, market_badge, timing_advice, badge_color = get_ist_clock_status()
 active_count = len(st.session_state.saved_strategies)
-api_status_badge = "🟢 LIVE NFO API" if smart_api else "🟡 SIMULATED MODE"
+api_status_badge = "🟢 LIVE NFO API" if smart_api else "🔴 DISCONNECTED"
 api_badge_color = "#10b981" if smart_api else "#f59e0b"
 
 # ==============================================================================
@@ -90,8 +100,9 @@ with st.container():
     )
     for name, key in [("NIFTY 50", "nifty"), ("BANKNIFTY", "banknifty"), ("SENSEX", "sensex")]:
         d = market_data[key]
-        ltp = d["ltp"]
-        close = d["close"] if d["close"] > 0 else ltp
+        ltp = d["ltp"] or 0.0
+        close = d["close"] if d["close"] and d["close"] > 0 else ltp
+        d = {k: (v if v is not None else 0.0) for k, v in d.items()}
         diff = ltp - close
         pct = (diff / close) * 100 if close > 0 else 0.0
         css_color = "#34d399" if diff >= 0 else "#f87171"
@@ -138,7 +149,8 @@ if "Quant Terminal" in nav_mode:
     today_dt = ist_now.date()
     valid_exps = sorted([d for d in nfo_df["expiry_dt"].dropna().unique() if d >= today_dt])[:4]
     if not valid_exps:
-        valid_exps = [today_dt + datetime.timedelta(days=7)]
+        st.error("No valid listed NIFTY expiry found in Angel instrument master.")
+        st.stop()
 
     exp_labels = {d: f"{d.strftime('%d-%b')} ({(d - today_dt).days}d)" for d in valid_exps}
     
@@ -170,6 +182,9 @@ if "Quant Terminal" in nav_mode:
     display_exp = selected_exp_dt.strftime("%d-%b")
 
     oi_data = get_live_option_chain_oi(smart_api, nfo_df, selected_exp_dt.isoformat(), atm_strike)
+    if not oi_data["is_live"]:
+        st.error("Live option-chain OI unavailable. Strategy suggestions are paused to prevent misleading signals.")
+        st.stop()
     live_pcr = oi_data["pcr"]
     live_max_pain = oi_data["max_pain"]
     call_wall = oi_data["call_wall"]
@@ -229,6 +244,7 @@ if "Quant Terminal" in nav_mode:
     lot_size = int(exp_nfo["lotsize_int"].iloc[0]) if not exp_nfo.empty else 65
 
     leg_tokens = []
+    leg_symbol_map = {}
     leg_token_map = {}
     for idx, lg in enumerate(raw_legs):
         match_row = exp_nfo[(exp_nfo["strike_int"] == lg["strike"]) & (exp_nfo["opt_type"] == lg["type"])]
@@ -236,16 +252,14 @@ if "Quant Terminal" in nav_mode:
             tok = str(match_row["token"].iloc[0])
             leg_tokens.append(tok)
             leg_token_map[idx] = tok
+            leg_symbol_map[idx] = str(match_row["symbol"].iloc[0])
 
     live_ltps = fetch_batch_ltps(smart_api, leg_tokens)
     display_legs = []
     for idx, lg in enumerate(raw_legs):
         tok = leg_token_map.get(idx, "")
         prem = live_ltps.get(tok, 0.0)
-        if prem <= 0:
-            dist = abs(live_spot - lg["strike"])
-            prem = round(max(12.0, 165.0 * (0.994 ** dist)), 2)
-        kite_sym = get_kite_symbol(selected_exp_dt, lg["strike"], lg["type"], valid_exps)
+        kite_sym = leg_symbol_map.get(idx, "")
         display_legs.append({
             "type": lg["type"],
             "action": lg["action"],
@@ -255,6 +269,11 @@ if "Quant Terminal" in nav_mode:
             "token": tok,
             "symbol": kite_sym
         })
+
+    quotes_ok = all(lg["token"] and lg["symbol"] and lg["premium"] > 0 for lg in display_legs)
+    if not quotes_ok:
+        st.error("One or more live option prices/instrument mappings missing. Strategy cannot be saved or evaluated.")
+        st.stop()
 
     # --- INITIALIZE SCENARIO SIMULATOR STATE ---
     if "sim_vix_shift" not in st.session_state:
@@ -268,6 +287,7 @@ if "Quant Terminal" in nav_mode:
         sim_dte_override=st.session_state.sim_dte_override
     )
     margin_info = payoff_res["margin_info"]
+    st.caption("⚠️ Margin is only a rough estimate; confirm broker margin. Stop-loss is alert-only, not an automatic exit. POP/Greeks are estimates.")
 
     # --- RESPONSIVE SIDE-BY-SIDE LAYOUT (Legs Left, Graph Right) ---
     col_legs, col_chart = st.columns([1, 1.3], gap="medium")
@@ -315,6 +335,9 @@ if "Quant Terminal" in nav_mode:
         )
 
         if st.button("🚀 Deploy & Save to Live P&L Tracker", use_container_width=True, type="primary"):
+            if not quotes_ok:
+                st.error("Live prices required before saving.")
+                st.stop()
             new_id = len(st.session_state.saved_strategies) + 1
             new_entry = {
                 "id": int(datetime.datetime.now().timestamp()),
@@ -382,8 +405,35 @@ else:
         st.info("Abhi koi active strategy nahi hai. '⚡ Quant Terminal' tab से कोई strategy deploy करें.")
     else:
         all_tokens = [lg.get("token", "") for s in st.session_state.saved_strategies for lg in s.get("legs", []) if lg.get("token")]
+        # Validate existing records against current exchange master; do not trust old tokens/symbols.
+        invalid = []
+        for si, strategy in enumerate(st.session_state.saved_strategies):
+            expiry_label = str(strategy.get("expiry", ""))
+            try:
+                day_month = datetime.datetime.strptime(expiry_label, "%d-%b")
+                candidates = nfo_df[nfo_df["expiry_dt"].apply(
+                    lambda d: isinstance(d, datetime.date) and d.day == day_month.day
+                              and d.month == day_month.month and d.year == ist_now.year)]
+            except ValueError:
+                candidates = nfo_df.iloc[0:0]
+            for li, leg in enumerate(strategy.get("legs", [])):
+                rows = candidates[(candidates["strike_int"] == int(leg["strike"])) &
+                                  (candidates["opt_type"] == leg["type"])]
+                if rows.empty or not any((str(row["token"]) == str(leg.get("token", "")) and
+                                          str(row["symbol"]) == str(leg.get("symbol", "")))
+                                         for _, row in rows.iterrows()):
+                    invalid.append(f"Strategy {si+1} leg {li+1}")
+        if invalid:
+            st.error("Saved instrument mapping invalid: " + ", ".join(invalid) +
+                     ". Your original entries are preserved. Verify/repair old records before running tracker.")
+            st.stop()
         tracker_ltps = fetch_batch_ltps(smart_api, all_tokens)
+        missing = [token for token in all_tokens if str(token) not in tracker_ltps]
+        if missing:
+            st.error(f"{len(missing)} option quotes unavailable. P&L/SL alerts paused instead of showing entry prices as live.")
+            st.stop()
 
+        st.caption("⚠️ Live tracker is informational. No broker orders are placed; P&L excludes transaction charges. SL alerts require the dashboard to keep running.")
         # --- AGGREGATED PORTFOLIO CALCULATIONS ---
         total_portfolio_pnl = 0.0
         total_portfolio_delta = 0.0
@@ -409,8 +459,7 @@ else:
                 ent_price = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
                 strat_display_legs.append({"action": lg["action"], "type": lg["type"], "strike": lg["strike"], "premium": ent_price})
                 
-                cur_p = tracker_ltps.get(tok, ent_price)
-                if cur_p <= 0: cur_p = ent_price
+                cur_p = tracker_ltps[str(tok)]
 
                 diff_p = (cur_p - ent_price) if lg["action"] == "BUY" else (ent_price - cur_p)
                 total_pnl_pts += diff_p
@@ -436,8 +485,8 @@ else:
             total_portfolio_theta += payoff_calc["net_theta"]
             total_portfolio_margin += payoff_calc["margin_info"]["total_margin"]
             
-            max_p_val = float(strat.get("max_profit", payoff_calc["max_profit"]))
-            max_l_val = float(strat.get("max_loss", payoff_calc["max_loss"]))
+            max_p_val = float(payoff_calc["max_profit"])
+            max_l_val = float(payoff_calc["max_loss"])
             total_max_profit += max_p_val
             total_max_risk += max_l_val
 
@@ -493,9 +542,12 @@ else:
 #{idx+1} • <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})
 Current P&L: <b>₹{net_pnl_rs:,.0f}</b> (Trigger: ₹{sl_limit:,.0f})
 👉 Please review or exit position!"""
-                send_telegram_alert(sl_msg)
-                st.toast(f"🚨 Stop-Loss Triggered for #{idx+1}!", icon="⚠️")
-                st.session_state[alert_key] = True
+                sent = send_telegram_alert(sl_msg)
+                if sent:
+                    st.toast(f"🚨 Stop-Loss ALERT sent for #{idx+1}! (No auto-exit)", icon="⚠️")
+                    st.session_state[alert_key] = True
+                else:
+                    st.error("Stop-loss breached but Telegram delivery FAILED. Manually review broker position NOW.")
 
             status_txt = f"🟡 MONITOR CLOSELY — Drift: {spot_drift:+.1f} pts." if abs(spot_drift) >= 100 else f"🟢 SAFE ZONE — Drift: {spot_drift:+.1f} pts."
             status_bg = "rgba(234, 179, 8, 0.15)" if abs(spot_drift) >= 100 else "rgba(16, 185, 129, 0.15)"
@@ -504,7 +556,7 @@ Current P&L: <b>₹{net_pnl_rs:,.0f}</b> (Trigger: ₹{sl_limit:,.0f})
             card_html = (
                 f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px; margin-bottom:8px;">'
                 f'<div style="font-size:0.9rem; font-weight:800; color:#f8fafc;">#{idx+1} • {strat.get("name", "Strategy")} <span style="color:#38bdf8;">({strat.get("expiry", "")})</span></div>'
-                f'<div style="font-size:0.7rem; color:#94a3b8; margin-bottom:4px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | SL: ₹{sl_limit:,.0f}</div>'
+                f'<div style="font-size:0.7rem; color:#94a3b8; margin-bottom:4px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | Alert-only SL: ₹{sl_limit:,.0f}</div>'
                 f'<div style="display:flex; gap:10px; flex-wrap:wrap; font-size:0.75rem; font-weight:700; margin-bottom:4px;">'
                 f'<span style="color:#10b981;">Max Profit: ₹{max_p_val:,.0f}</span>'
                 f'<span style="color:#ef4444;">Max Risk: ₹{max_l_val:,.0f}</span>'
@@ -536,7 +588,7 @@ Net: {net_sign}{total_pnl_pts:+.2f} pts | P&L: <b>{net_sign}₹{net_pnl_rs:,.0f}
 {tg_exit_legs}"""
                         send_telegram_alert(tg_msg)
                         
-                        st.toast(f"🚀 Telegram Notification Sent: Trade Exited! P&L: {net_sign}₹{net_pnl_rs:,.0f}", icon="✅")
+                        st.toast(f"Tracker entry removed (NOT a broker order). P&L: {net_sign}₹{net_pnl_rs:,.0f}", icon="⚠️")
                         st.session_state.saved_strategies.pop(idx)
                         save_strategies_to_disk(st.session_state.saved_strategies)
                         st.rerun()
@@ -577,7 +629,13 @@ Updated: {ist_time_str}    Spot: ₹{live_spot:,.2f}
                         with c2:
                             new_pr = st.number_input(f"Leg {l_i+1} Entry ₹", value=cur_ent_val, step=0.5, key=f"pr_{strat_id}_{l_i}")
                         
-                        new_legs.append({"action": lg["action"], "type": lg["type"], "strike": new_st, "entry_price": new_pr, "token": lg.get("token", ""), "symbol": lg.get("symbol", "")})
+                        # Resolve the edited strike against the actual Angel instrument master.
+                        mapping = candidates[(candidates["strike_int"] == int(new_st)) &
+                                             (candidates["opt_type"] == lg["type"])]
+                        mapped_token = str(mapping["token"].iloc[0]) if len(mapping) == 1 else ""
+                        mapped_symbol = str(mapping["symbol"].iloc[0]) if len(mapping) == 1 else ""
+                        new_legs.append({"action": lg["action"], "type": lg["type"], "strike": new_st,
+                                         "entry_price": new_pr, "token": mapped_token, "symbol": mapped_symbol})
                         if new_st != lg["strike"] or new_pr != cur_ent_val:
                             updated = True
                             
@@ -589,6 +647,9 @@ Updated: {ist_time_str}    Spot: ₹{live_spot:,.2f}
 
                     if st.button("💾 Save Changes", key=f"save_{strat_id}", type="primary", use_container_width=True):
                         if updated:
+                            if not all(lg["token"] and lg["symbol"] for lg in new_legs):
+                                st.error("Edited strike not found uniquely for saved expiry. Changes not saved.")
+                                st.stop()
                             st.session_state.saved_strategies[idx]["legs"] = new_legs
                             st.session_state.saved_strategies[idx]["stop_loss_limit"] = new_sl_limit
                             st.session_state[alert_key] = False 

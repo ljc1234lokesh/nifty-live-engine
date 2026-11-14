@@ -14,7 +14,7 @@ def send_telegram_alert(message_text):
         url = f"https://api.telegram.org/bot{tg_token}/sendMessage"
         payload = {"chat_id": tg_chat_id, "text": message_text, "parse_mode": "HTML"}
         r = requests.post(url, json=payload, timeout=8)
-        return r.status_code == 200
+        return r.status_code == 200 and bool(r.json().get("ok"))
     except Exception:
         return False
 
@@ -63,12 +63,12 @@ def load_angel_master_data():
 
 @st.cache_data(ttl=30, show_spinner=False)
 def get_comprehensive_indices(_smart_api, idx_tokens):
-    out = {
-        "nifty": {"ltp": 25243.30, "open": 25213.50, "high": 25384.80, "low": 25142.95, "close": 25255.05},
-        "banknifty": {"ltp": 61281.05, "open": 60801.85, "high": 61406.35, "low": 60723.10, "close": 60792.40},
-        "sensex": {"ltp": 81871.62, "open": 81762.27, "high": 82325.61, "low": 81576.15, "close": 81879.40},
-        "vix": 16.88
-    }
+    # Never fabricate live prices when a broker quote is missing.
+    empty = {k: None for k in ("ltp", "open", "high", "low", "close")}
+    out = {"nifty": dict(empty), "banknifty": dict(empty),
+           "sensex": dict(empty), "vix": None}
+    if _smart_api is None:
+        return out
     try:
         t_nifty, t_bnf, t_vix, t_snx = idx_tokens["NIFTY"], idx_tokens["BANKNIFTY"], idx_tokens["VIX"], idx_tokens["SENSEX"]
         
@@ -109,7 +109,7 @@ def get_comprehensive_indices(_smart_api, idx_tokens):
 @st.cache_data(ttl=15, show_spinner=False)
 def get_live_option_chain_oi(_smart_api, nfo_df, exp_date_str, atm_val):
     fallback = {
-        "pcr": 0.92, "max_pain": atm_val,
+        "pcr": 0.0, "max_pain": atm_val,
         "call_wall": atm_val + 150, "put_wall": atm_val - 150,
         "call_wall_oi": 0, "put_wall_oi": 0,
         "is_live": False, "ltp_dict": {}
@@ -184,10 +184,14 @@ def fetch_batch_ltps(smart_api, tokens):
     if not tokens:
         return ltp_map
     try:
-        res = smart_api.getMarketData("LTP", {"NFO": list(set(tokens))})
+        if smart_api is None:
+            return ltp_map
+        res = smart_api.getMarketData("LTP", {"NFO": list(set(str(t) for t in tokens if t))})
         if res and res.get("status") and "data" in res:
             for item in res["data"].get("fetched", []):
-                ltp_map[str(item["symbolToken"])] = float(item["ltp"])
+                price = float(item.get("ltp") or 0)
+                if price > 0:
+                    ltp_map[str(item["symbolToken"])] = price
     except Exception:
         pass
     return ltp_map

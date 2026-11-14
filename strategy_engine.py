@@ -75,7 +75,9 @@ def save_strategies_to_disk(strat_list):
             if sha:
                 payload["sha"] = sha
 
-            requests.put(url, headers=headers, json=payload, timeout=8)
+            result = requests.put(url, headers=headers, json=payload, timeout=8)
+            if not result.ok:
+                st.warning(f"GitHub backup failed (HTTP {result.status_code}). Check repo permissions and branch.")
         except Exception:
             pass
 
@@ -252,37 +254,67 @@ def _bs_option_price(S, K, T, r, sigma, opt_type):
         return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
 def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_size, display_exp, sim_vix_shift=0.0, sim_dte_override=None):
-    spot_range = np.linspace(live_spot - 800, live_spot + 800, 300)
-    pnl_expiry = np.zeros_like(spot_range)
+    if not display_legs or lot_size <= 0:
+        raise ValueError("Valid legs and lot size are required")
+    strikes = sorted(set(float(lg["strike"]) for lg in display_legs))
+    # Exact expiration payoff for same-expiry vanilla European index options:
+    # piecewise linear, extrema occur at strikes or either boundary.
+    spot_range = np.unique(np.concatenate((
+        np.linspace(max(0.0, min([live_spot] + strikes) - 800),
+                    max([live_spot] + strikes) + 800, 400), strikes, [0.0]
+    )))
     net_credit = 0.0
+    for leg in display_legs:
+        net_credit += float(leg["premium"]) * (1 if leg["action"] == "SELL" else -1)
+
+    def payoff_at(prices):
+        prices = np.asarray(prices, dtype=float)
+        result = np.zeros_like(prices)
+        for leg in display_legs:
+            intrinsic = (np.maximum(0, prices - float(leg["strike"]))
+                         if leg["type"] == "CE" else
+                         np.maximum(0, float(leg["strike"]) - prices))
+            result += (intrinsic - float(leg["premium"])) * (1 if leg["action"] == "BUY" else -1)
+        return result
+
+    expiry_check = payoff_at([0.0] + strikes + [max(strikes) + 1.0]) * lot_size
+    # For S beyond the largest strike, the payoff slope is the net call exposure.
+    call_slope = sum((1 if leg["action"] == "BUY" else -1)
+                     for leg in display_legs if leg["type"] == "CE")
+    max_profit_lot = float('inf') if call_slope > 0 else float(np.max(expiry_check))
+    max_loss_lot = float('inf') if call_slope < 0 else max(0.0, -float(np.min(expiry_check)))
 
     eff_vix = max(5.0, live_vix + sim_vix_shift)
     eff_dte = sim_dte_override if sim_dte_override is not None else dte_days
     T_years = max(eff_dte, 0.5) / 365.0
     sigma = eff_vix / 100.0
     r = 0.065
-
-    for leg in display_legs:
-        k, prem = leg["strike"], leg["premium"]
-        net_credit += prem if leg["action"] == "SELL" else -prem
-        
-        if sim_dte_override is not None and sim_dte_override < dte_days:
-            sim_theo = _bs_option_price(spot_range, k, T_years, r, sigma, leg["type"])
-            pnl_leg = (sim_theo - prem) if leg["action"] == "BUY" else (prem - sim_theo)
-            pnl_expiry += pnl_leg
-        else:
-            intrinsic = np.maximum(0, spot_range - k) if leg["type"] == "CE" else np.maximum(0, k - spot_range)
-            pnl_expiry += (intrinsic - prem) if leg["action"] == "BUY" else (prem - intrinsic)
-
+    if sim_dte_override is not None and sim_dte_override < dte_days:
+        pnl_expiry = np.zeros_like(spot_range)
+        for leg in display_legs:
+            price = _bs_option_price(spot_range, leg["strike"], T_years, r, sigma, leg["type"])
+            pnl_expiry += (price - leg["premium"]) * (1 if leg["action"] == "BUY" else -1)
+    else:
+        pnl_expiry = payoff_at(spot_range)
     pnl_exp_lot = pnl_expiry * lot_size
-    max_profit_lot = float(np.max(pnl_exp_lot))
-    max_loss_lot = float(abs(np.min(pnl_exp_lot)))
 
-    profitable_spots = spot_range[pnl_expiry >= 0]
-    lower_be = float(profitable_spots[0]) if len(profitable_spots) > 0 else live_spot - 250
-    upper_be = float(profitable_spots[-1]) if len(profitable_spots) > 0 else live_spot + 250
+    # Compute exact break-even intersections at expiration strike intervals.
+    be_points = [0.0] + strikes + [max(strikes) + max(1000., live_spot)]
+    be_values = payoff_at(be_points)
+    break_evens = []
+    for left, right, yl, yr in zip(be_points, be_points[1:], be_values, be_values[1:]):
+        if yl == 0:
+            break_evens.append(left)
+        if (yl < 0 < yr) or (yr < 0 < yl):
+            break_evens.append(left - yl * (right - left) / (yr - yl))
+    if be_values[-1] == 0:
+        break_evens.append(be_points[-1])
+    break_evens = sorted(set(round(x, 6) for x in break_evens))
+    lower_be = break_evens[0] if break_evens else live_spot
+    upper_be = break_evens[-1] if break_evens else live_spot
 
     stdev = live_spot * sigma * np.sqrt(T_years)
+    # Normal-approximation, not a calibrated win probability.
     pop_percent = float((norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100)
     rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
