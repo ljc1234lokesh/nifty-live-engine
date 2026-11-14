@@ -33,3 +33,29 @@
 div[data-testid="stWidgetLabel"] p, div[role="radiogroup"] label p {
     color: #f8fafc !important;
 }
+/* --- BUTTON VISIBILITY & HOVER FIX --- */
+div.stButton > button {
+    background-color: #1e293b !important;
+    color: #f8fafc !important;
+    border: 1px solid #334155 !important;
+    transition: all 0.2s ease-in-out !important;
+}
+
+div.stButton > button:hover {
+    background-color: #0f172a !important;
+    border-color: #38bdf8 !important;
+    color: #38bdf8 !important;
+}
+
+/* Primary Button (Deploy & Save) Fix */
+div.stButton > button[kind="primary"] {
+    background-color: #ef4444 !important;
+    color: #ffffff !important;
+    border: 1px solid #ef4444 !important;
+}
+
+div.stButton > button[kind="primary"]:hover {
+    background-color: #dc2626 !important;
+    border-color: #dc2626 !important;
+    color: #ffffff !important;
+}
