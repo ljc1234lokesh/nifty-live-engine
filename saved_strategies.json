@@ -34,7 +34,8 @@
         "premium": 150.75,
         "readable": "NIFTY 17-Nov 25100 CE",
         "kite_sym": "NIFTY26N1725100CE",
-        "note": "ATM Call Sell (25100 Pin)"
+        "note": "ATM Call Sell (25100 Pin)",
+        "entry_price": 126.0
       },
       {
         "type": "CE",
