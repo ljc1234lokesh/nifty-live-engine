@@ -1,1 +1,46 @@
-[]
+[
+  {
+    "id": 1794655139,
+    "name": "Short Iron Butterfly (ATM Pinning)",
+    "expiry": "17-Nov",
+    "saved_time": "16:48:59 IST",
+    "entry_spot": 25243.3,
+    "lot_size": 65,
+    "max_profit": 14073,
+    "max_loss": 1160,
+    "legs": [
+      {
+        "action": "BUY",
+        "type": "PE",
+        "strike": 25050,
+        "entry_price": 51.56,
+        "token": "45389",
+        "symbol": "NIFTY26N1725050PE"
+      },
+      {
+        "action": "SELL",
+        "type": "PE",
+        "strike": 25250,
+        "entry_price": 158.48,
+        "token": "45401",
+        "symbol": "NIFTY26N1725250PE"
+      },
+      {
+        "action": "SELL",
+        "type": "CE",
+        "strike": 25250,
+        "entry_price": 158.48,
+        "token": "45396",
+        "symbol": "NIFTY26N1725250CE"
+      },
+      {
+        "action": "BUY",
+        "type": "CE",
+        "strike": 25450,
+        "entry_price": 47.56,
+        "token": "45408",
+        "symbol": "NIFTY26N1725450CE"
+      }
+    ]
+  }
+]
