@@ -142,7 +142,6 @@ if "Quant Terminal" in nav_mode:
 
     exp_labels = {d: f"{d.strftime('%d-%b')} ({(d - today_dt).days}d)" for d in valid_exps}
     
-    # --- PUTTING EXPIRY SELECTION AND STRATEGY ENGINE SIDE-BY-SIDE ---
     opt_c1, opt_c2 = st.columns([1.5, 1])
     with opt_c1:
         sel_exp_label = st.radio(
@@ -263,7 +262,6 @@ if "Quant Terminal" in nav_mode:
     col_legs, col_chart = st.columns([1, 1.3], gap="medium")
     
     with col_legs:
-        # Compact Title Card
         st.markdown(
             f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:6px; padding:10px; margin-bottom:6px;">'
             f'<div style="font-size:0.95rem; font-weight:800; color:#38bdf8;">🎯 {strat_title}</div>'
@@ -277,7 +275,6 @@ if "Quant Terminal" in nav_mode:
             unsafe_allow_html=True
         )
 
-        # Compact Execution Legs Table
         for i, lg in enumerate(display_legs, 1):
             act_col = "#10b981" if lg["action"] == "BUY" else "#ef4444"
             st.markdown(
@@ -294,6 +291,7 @@ if "Quant Terminal" in nav_mode:
             )
 
         if st.button("🚀 Deploy & Save to Live P&L Tracker", use_container_width=True, type="primary"):
+            new_id = len(st.session_state.saved_strategies) + 1
             new_entry = {
                 "id": int(datetime.datetime.now().timestamp()),
                 "name": strat_title,
@@ -308,8 +306,12 @@ if "Quant Terminal" in nav_mode:
             st.session_state.saved_strategies.append(new_entry)
             save_strategies_to_disk(st.session_state.saved_strategies)
             
-            # --- TG Alert & Flash Popup ---
-            send_telegram_alert(f"🚀 <b>NEW STRATEGY DEPLOYED</b>\n<b>{strat_title}</b> ({display_exp})\nSpot: ₹{live_spot:,.2f} | Max Profit: ₹{payoff_res['max_profit']:,.0f}")
+            # --- DETAILED TELEGRAM NOTIFICATION FOR DEPLOYMENT ---
+            tg_msg = f"🚀 <b>NEW STRATEGY DEPLOYED</b>\n#{new_id}. <b>{strat_title}</b> ({display_exp})\nSaved: {ist_time_str}    Spot: ₹{live_spot:,.2f}\n"
+            for lg in display_legs:
+                tg_msg += f"- {lg['action']} NIFTY {display_exp} {lg['strike']} {lg['type']} @ ₹{lg['premium']:.2f}\n"
+            
+            send_telegram_alert(tg_msg)
             st.toast(f"🚀 Telegram Notification Sent: New Strategy Deployed!", icon="✅")
             st.success("✅ Strategy saved!")
             st.rerun()
@@ -338,7 +340,7 @@ else:
         tracker_ltps = fetch_batch_ltps(smart_api, all_tokens)
 
         for idx, strat in enumerate(st.session_state.saved_strategies):
-            strat_id = strat.get("id", idx) # Reliable ID
+            strat_id = strat.get("id", idx)
             lot_q = strat.get("lot_size", strat.get("lot", 65))
             ent_spot = strat.get("entry_spot", live_spot)
             spot_drift = live_spot - ent_spot
@@ -346,6 +348,10 @@ else:
 
             legs_html = ""
             strat_display_legs = [] 
+            
+            # --- For Telegram Exit Alert ---
+            tg_exit_legs = ""
+            
             for l_i, lg in enumerate(strat.get("legs", []), 1):
                 tok = lg.get("token", "")
                 ent_price = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
@@ -360,6 +366,8 @@ else:
                 pnl_col = "#10b981" if leg_pnl_rs >= 0 else "#ef4444"
                 act_col = "#10b981" if lg["action"] == "BUY" else "#ef4444"
                 sign_p = "+" if leg_pnl_rs >= 0 else ""
+                
+                tg_exit_legs += f"- {lg['action']} NIFTY {strat.get('expiry', '')} {lg['strike']} {lg['type']}: ₹{ent_price:.2f} → ₹{cur_p:.2f} ({sign_p}₹{leg_pnl_rs:,.0f})\n"
 
                 legs_html += (
                     f'<div style="background-color:#111827; border-left:4px solid {act_col}; border:1px solid #1f2937; border-radius:4px; padding:4px 8px; margin-bottom:4px;">'
@@ -404,8 +412,11 @@ else:
                 
                 with btn_c1:
                     if st.button("🚪 Exit Trade", key=f"exit_{strat_id}", use_container_width=True):
-                        # Exit: Sends Notification, Shows Toast, Removes Strategy
-                        send_telegram_alert(f"🚪 <b>TRADE EXITED</b>\n<b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\nExit Spot: ₹{live_spot:,.2f}\nBooked P&L: {net_sign}₹{net_pnl_rs:,.0f}")
+                        # Exit: Detailed TG Notification
+                        pnl_status = "🟢 PROFIT BOOKED" if net_pnl_rs >= 0 else "🔴 LOSS BOOKED"
+                        tg_msg = f"🚪 <b>TRADE EXITED — {pnl_status}</b>\nSaved: {strat.get('saved_time', '')}\n#{idx+1}. <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\nNet: {net_sign}{total_pnl_pts:+.2f} pts | P&L: <b>{net_sign}₹{net_pnl_rs:,.0f}</b>\n{tg_exit_legs}"
+                        send_telegram_alert(tg_msg)
+                        
                         st.toast(f"🚀 Telegram Notification Sent: Trade Exited! P&L: {net_sign}₹{net_pnl_rs:,.0f}", icon="✅")
                         st.session_state.saved_strategies.pop(idx)
                         save_strategies_to_disk(st.session_state.saved_strategies)
@@ -416,24 +427,25 @@ else:
                     if edit_key not in st.session_state:
                         st.session_state[edit_key] = False
                     if st.button("✏️ Edit Trade", key=f"btn_edit_{strat_id}", use_container_width=True):
-                        # Toggles Edit Form visibility
                         st.session_state[edit_key] = not st.session_state[edit_key]
                         st.rerun()
                         
                 with btn_c3:
-                    if st.button("🗑️ Delete Trade", key=f"del_{strat_id}", use_container_width=True):
-                        # Delete: Quietly removes strategy without sending TG notification
+                    if st.button("🗑️ Delete", key=f"del_{strat_id}", use_container_width=True):
+                        # Delete: Quietly removes strategy (NO Notification)
                         st.session_state.saved_strategies.pop(idx)
                         save_strategies_to_disk(st.session_state.saved_strategies)
                         st.rerun()
 
-                # --- DYNAMIC EDIT FORM (Slides open on Edit Trade click) ---
+                # --- DYNAMIC EDIT FORM ---
                 if st.session_state.get(f"edit_mode_{strat_id}", False):
                     st.markdown("<div style='background-color:#1e293b; padding:12px; border-radius:6px; margin-top:8px;'>", unsafe_allow_html=True)
                     st.markdown("<div style='color:#f8fafc; font-weight:bold; font-size:0.9rem; margin-bottom:10px;'>Update Strikes & Entry Prices</div>", unsafe_allow_html=True)
                     
                     updated = False
                     new_legs = []
+                    tg_edit_msg = f"✏️ <b>TRADE EDITED</b>\n#{idx+1}. <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\n"
+                    
                     for l_i, lg in enumerate(strat.get("legs", [])):
                         cur_ent_val = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
                         c1, c2 = st.columns(2)
@@ -445,17 +457,17 @@ else:
                         new_legs.append({"action": lg["action"], "type": lg["type"], "strike": new_st, "entry_price": new_pr, "token": lg.get("token", ""), "symbol": lg.get("symbol", "")})
                         if new_st != lg["strike"] or new_pr != cur_ent_val:
                             updated = True
+                            tg_edit_msg += f"Leg {l_i+1}: {lg['action']} {lg['type']} -> Strike: {new_st}, Entry: ₹{new_pr}\n"
                     
                     if st.button("💾 Save Changes", key=f"save_{strat_id}", type="primary", use_container_width=True):
                         if updated:
                             st.session_state.saved_strategies[idx]["legs"] = new_legs
                             save_strategies_to_disk(st.session_state.saved_strategies)
                             
-                            # Edit: Sends Notification, Shows Toast, Updates Strategy
-                            send_telegram_alert(f"✏️ <b>TRADE EDITED</b>\n<b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\nNew Entry / Strikes updated manually.")
+                            # Detailed Edit Notification
+                            send_telegram_alert(tg_edit_msg)
                             st.toast("🚀 Telegram Notification Sent: Trade Edited!", icon="✅")
                             
-                        # Close form and reload
                         st.session_state[f"edit_mode_{strat_id}"] = False
                         st.rerun()
                         
