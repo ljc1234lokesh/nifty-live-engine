@@ -460,20 +460,16 @@ else:
                             tg_edit_msg += f"• Leg {l_i+1}: {lg['action']} {lg['type']} -> Strike: {new_st}, Entry: ₹{new_pr}\n"
                     
                     if st.button("💾 Save Changes", key=f"save_{strat_id}", type="primary", use_container_width=True):
-    if updated:
-        st.session_state.saved_strategies[idx]["legs"] = new_legs
-        save_strategies_to_disk(st.session_state.saved_strategies)
-        
-        # --- FULL TRADE DETAILED EDIT NOTIFICATION ---
-        tg_edit_msg = f"✏️ <b>TRADE EDITED</b>\n#{idx+1} • <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\nUpdated: {ist_time_str}    Spot: ₹{live_spot:,.2f}\n"
-        for l_i, lg in enumerate(new_legs, 1):
-            tg_edit_msg += f"• {lg['action']} NIFTY {strat.get('expiry', '')} {lg['strike']} {lg['type']} @ ₹{lg['entry_price']:.2f}\n"
-        
-        send_telegram_alert(tg_edit_msg)
-        st.toast("🚀 Telegram Notification Sent: Trade Edited (Full Details)!", icon="✅")
-        
-    st.session_state[f"edit_mode_{strat_id}"] = False
-    st.rerun()
+                        if updated:
+                            st.session_state.saved_strategies[idx]["legs"] = new_legs
+                            save_strategies_to_disk(st.session_state.saved_strategies)
+                            
+                            # Detailed Edit Notification
+                            send_telegram_alert(tg_edit_msg)
+                            st.toast("🚀 Telegram Notification Sent: Trade Edited!", icon="✅")
+                            
+                        st.session_state[f"edit_mode_{strat_id}"] = False
+                        st.rerun()
                         
                     st.markdown("</div>", unsafe_allow_html=True)
             
