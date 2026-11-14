@@ -47,39 +47,42 @@ def load_saved_strategies():
     return []
 
 def save_strategies_to_disk(strat_list):
-    try:
-        with open(STORAGE_FILE, "w") as f:
-            json.dump(strat_list, f, indent=2)
-    except Exception:
-        pass
+    """Persist to GitHub first when configured; return False on any failure.
 
+    Avoid claiming that a tracker removal is saved when the remote GitHub file was not updated.
+    """
     token, repo, user = get_github_repo_credentials()
     if token and repo and user:
         try:
             url = f"https://api.github.com/repos/{user}/{repo}/contents/{STORAGE_FILE}"
             headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
-            
-            sha = None
-            r_get = requests.get(url, headers=headers, timeout=5)
-            if r_get.status_code == 200:
-                sha = r_get.json().get("sha")
-
-            json_str = json.dumps(strat_list, indent=2)
-            content_encoded = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
-
+            r_get = requests.get(url, headers=headers, timeout=8)
+            if r_get.status_code not in (200, 404):
+                st.warning(f"GitHub read failed (HTTP {r_get.status_code}); nothing was changed.")
+                return False
             payload = {
-                "message": "Auto-sync saved strategies via Quant Terminal",
-                "content": content_encoded,
-                "branch": "main"
+                "message": "Sync saved strategies via Quant Terminal",
+                "content": base64.b64encode(json.dumps(strat_list, indent=2).encode()).decode(),
+                "branch": "main",
             }
-            if sha:
-                payload["sha"] = sha
-
-            result = requests.put(url, headers=headers, json=payload, timeout=8)
+            if r_get.status_code == 200:
+                payload["sha"] = r_get.json()["sha"]
+            result = requests.put(url, headers=headers, json=payload, timeout=12)
             if not result.ok:
-                st.warning(f"GitHub backup failed (HTTP {result.status_code}). Check repo permissions and branch.")
-        except Exception:
-            pass
+                st.warning(f"GitHub save failed (HTTP {result.status_code}); nothing was changed remotely.")
+                return False
+        except Exception as exc:
+            st.warning(f"GitHub save failed ({type(exc).__name__}).")
+            return False
+    try:
+        with open(STORAGE_FILE, "w", encoding="utf-8") as f:
+            json.dump(strat_list, f, indent=2)
+    except OSError:
+        # GitHub may have been saved even if Streamlit local storage cannot be written.
+        if not (token and repo and user):
+            return False
+        st.info("GitHub saved, but local temporary file could not be updated.")
+    return True
 
 def get_ist_clock_status():
     utc_now = datetime.datetime.now(datetime.timezone.utc)
@@ -260,8 +263,8 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
     # Exact expiration payoff for same-expiry vanilla European index options:
     # piecewise linear, extrema occur at strikes or either boundary.
     spot_range = np.unique(np.concatenate((
-        np.linspace(max(0.0, min([live_spot] + strikes) - 800),
-                    max([live_spot] + strikes) + 800, 400), strikes, [0.0]
+        np.linspace(max(0.0, min([live_spot] + strikes) - 350),
+                    max([live_spot] + strikes) + 350, 500), strikes
     )))
     net_credit = 0.0
     for leg in display_legs:

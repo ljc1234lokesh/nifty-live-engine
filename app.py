@@ -278,7 +278,11 @@ if "Quant Terminal" in nav_mode:
     # --- INITIALIZE SCENARIO SIMULATOR STATE ---
     if "sim_vix_shift" not in st.session_state:
         st.session_state.sim_vix_shift = 0.0
-    if "sim_dte_override" not in st.session_state:
+    # Changing expiry must reset the simulation's DTE; otherwise old 0d settings can persist.
+    if st.session_state.get("sim_expiry_key") != selected_exp_dt.isoformat():
+        st.session_state.sim_expiry_key = selected_exp_dt.isoformat()
+        st.session_state.sim_dte_override = dte_days
+    elif "sim_dte_override" not in st.session_state:
         st.session_state.sim_dte_override = dte_days
 
     payoff_res = compute_payoff_and_chart(
@@ -404,6 +408,45 @@ else:
     if not st.session_state.saved_strategies:
         st.info("Abhi koi active strategy nahi hai. '⚡ Quant Terminal' tab से कोई strategy deploy करें.")
     else:
+        # Safe cleanup of the known legacy demo record BEFORE invalid instrument mapping stops the tracker.
+        # Deliberately avoids removing any other strategy, including a real trade.
+        def _is_old_demo_strategy(record):
+            return (str(record.get("id")) == "1794657337"
+                    and record.get("name") == "Short Iron Butterfly (ATM Pinning)"
+                    and record.get("expiry") == "17-Nov"
+                    and len(record.get("legs", [])) == 4
+                    and [int(leg.get("strike", -1)) for leg in record["legs"]]
+                    == [24900, 25100, 25100, 25300]
+                    and [str(leg.get("symbol", "")) for leg in record["legs"]]
+                    == ["NIFTY26N1725050PE", "NIFTY26N1725250PE",
+                        "NIFTY26N1725250CE", "NIFTY26N1725450CE"])
+
+        demo_records = [record for record in st.session_state.saved_strategies
+                        if _is_old_demo_strategy(record)]
+        if demo_records:
+            st.warning("Legacy TEST strategy detected. Its old instrument tokens are invalid. "
+                       "You can back it up and remove only this known test record; other strategies are untouched.")
+            backup_json = json.dumps(demo_records, indent=2, ensure_ascii=False)
+            st.download_button("⬇️ Download TEST strategy backup (JSON)",
+                               data=backup_json, file_name="nifty_test_strategy_backup.json",
+                               mime="application/json", key="download_demo_backup")
+            confirm_cleanup = st.checkbox(
+                "I confirm this specific strategy is only a test, NOT an open broker position.",
+                key="confirm_demo_cleanup")
+            if st.button("🧹 Remove ONLY confirmed test strategy from tracker",
+                         disabled=not confirm_cleanup, type="primary", key="remove_demo_strategy"):
+                previous_records = list(st.session_state.saved_strategies)
+                cleaned_records = [record for record in previous_records
+                                   if not _is_old_demo_strategy(record)]
+                if save_strategies_to_disk(cleaned_records):
+                    st.session_state.saved_strategies = cleaned_records
+                    st.success("Test record removed and saved. No broker order was placed.")
+                    st.rerun()
+                else:
+                    st.session_state.saved_strategies = previous_records
+                    st.error("Could not confirm persistent save. Test record retained; check GitHub token/permissions and retry.")
+            st.stop()
+
         all_tokens = [lg.get("token", "") for s in st.session_state.saved_strategies for lg in s.get("legs", []) if lg.get("token")]
         # Validate existing records against current exchange master; do not trust old tokens/symbols.
         invalid = []
