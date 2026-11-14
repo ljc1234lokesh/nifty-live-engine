@@ -191,19 +191,88 @@ def compute_strategy_greeks(display_legs, live_spot, live_vix, dte_days, lot_siz
         
     return round(net_delta, 1), round(net_theta_daily, 0)
 
-def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_size, display_exp):
+def estimate_margin_requirement(display_legs, lot_size, live_spot):
+    short_legs = [l for l in display_legs if l["action"] == "SELL"]
+    long_legs = [l for l in display_legs if l["action"] == "BUY"]
+    
+    if len(short_legs) == 0:
+        total_debit = sum(l["premium"] for l in long_legs) * lot_size
+        return {
+            "span_margin": 0.0,
+            "exposure_margin": 0.0,
+            "total_margin": total_debit,
+            "margin_type": "Buy-Only (Debit)"
+        }
+    
+    if len(short_legs) == 2 and len(long_legs) == 2:
+        ce_shorts = sorted([l["strike"] for l in short_legs if l["type"] == "CE"])
+        pe_shorts = sorted([l["strike"] for l in short_legs if l["type"] == "PE"])
+        ce_longs = sorted([l["strike"] for l in long_legs if l["type"] == "CE"])
+        pe_longs = sorted([l["strike"] for l in long_legs if l["type"] == "PE"])
+        
+        spread_width = 200
+        if ce_shorts and ce_longs:
+            spread_width = max(spread_width, abs(ce_longs[-1] - ce_shorts[0]))
+        if pe_shorts and pe_longs:
+            spread_width = max(spread_width, abs(pe_shorts[0] - pe_longs[0]))
+            
+        est_margin = (spread_width * lot_size) + 15000
+        return {
+            "span_margin": round(est_margin * 0.75),
+            "exposure_margin": round(est_margin * 0.25),
+            "total_margin": round(est_margin),
+            "margin_type": "Hedged Spread / Condor (Low Risk)"
+        }
+    elif len(short_legs) == 1 and len(long_legs) == 1:
+        spread_width = 200
+        est_margin = (spread_width * lot_size) + 10000
+        return {
+            "span_margin": round(est_margin * 0.70),
+            "exposure_margin": round(est_margin * 0.30),
+            "total_margin": round(est_margin),
+            "margin_type": "Single Credit Spread (Hedged)"
+        }
+    else:
+        est_margin = len(short_legs) * 115000.0
+        return {
+            "span_margin": round(est_margin * 0.75),
+            "exposure_margin": round(est_margin * 0.25),
+            "total_margin": round(est_margin),
+            "margin_type": "Naked / Unhedged (High Margin)"
+        }
+
+def _bs_option_price(S, K, T, r, sigma, opt_type):
+    if T <= 0:
+        return np.maximum(0.0, S - K) if opt_type == "CE" else np.maximum(0.0, K - S)
+    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    if opt_type == "CE":
+        return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+    else:
+        return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
+
+def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_size, display_exp, sim_vix_shift=0.0, sim_dte_override=None):
     spot_range = np.linspace(live_spot - 800, live_spot + 800, 300)
     pnl_expiry = np.zeros_like(spot_range)
     net_credit = 0.0
 
-    T_years = max(dte_days, 0.5) / 365.0
-    sigma = max(live_vix / 100.0, 0.10)
+    eff_vix = max(5.0, live_vix + sim_vix_shift)
+    eff_dte = sim_dte_override if sim_dte_override is not None else dte_days
+    T_years = max(eff_dte, 0.5) / 365.0
+    sigma = eff_vix / 100.0
+    r = 0.065
 
     for leg in display_legs:
         k, prem = leg["strike"], leg["premium"]
         net_credit += prem if leg["action"] == "SELL" else -prem
-        intrinsic = np.maximum(0, spot_range - k) if leg["type"] == "CE" else np.maximum(0, k - spot_range)
-        pnl_expiry += (intrinsic - prem) if leg["action"] == "BUY" else (prem - intrinsic)
+        
+        if sim_dte_override is not None and sim_dte_override < dte_days:
+            sim_theo = _bs_option_price(spot_range, k, T_years, r, sigma, leg["type"])
+            pnl_leg = (sim_theo - prem) if leg["action"] == "BUY" else (prem - sim_theo)
+            pnl_expiry += pnl_leg
+        else:
+            intrinsic = np.maximum(0, spot_range - k) if leg["type"] == "CE" else np.maximum(0, k - spot_range)
+            pnl_expiry += (intrinsic - prem) if leg["action"] == "BUY" else (prem - intrinsic)
 
     pnl_exp_lot = pnl_expiry * lot_size
     max_profit_lot = float(np.max(pnl_exp_lot))
@@ -217,7 +286,6 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
     pop_percent = float((norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100)
     rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
-    # --- MATPLOTLIB GRAPH GENERATION ---
     fig, ax = plt.subplots(figsize=(7, 3.2), facecolor="#111827")
     ax.set_facecolor("#111827")
 
@@ -225,12 +293,13 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
     ax.fill_between(spot_range, pnl_exp_lot, 0, where=(pnl_exp_lot < 0), facecolor="#ef4444", alpha=0.3)
 
     line_color = "#10b981" if max_profit_lot > 0 else "#ef4444"
+    title_suffix = f" (Sim VIX: {eff_vix:.1f}, DTE: {eff_dte}d)" if (sim_vix_shift != 0 or sim_dte_override is not None) else ""
     ax.plot(spot_range, pnl_exp_lot, color=line_color, linewidth=2)
     
     ax.axhline(0, color="#475569", linestyle="--", linewidth=1.5)
     ax.axvline(live_spot, color="#38bdf8", linestyle=":", linewidth=2, label=f"Spot: {live_spot:.0f}")
 
-    ax.set_title(f"Expiry Payoff ({display_exp}) | BE: {lower_be:.0f} - {upper_be:.0f}", color="#f8fafc", fontsize=10, pad=8)
+    ax.set_title(f"Payoff{title_suffix} | BE: {lower_be:.0f} - {upper_be:.0f}", color="#f8fafc", fontsize=10, pad=8)
     ax.set_xlabel("NIFTY Spot Price", color="#94a3b8", fontsize=8)
     ax.set_ylabel(f"P&L (₹ / {lot_size} Qty)", color="#94a3b8", fontsize=8)
 
@@ -240,7 +309,8 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
 
     fig.tight_layout(pad=0.5)
 
-    net_delta, net_theta = compute_strategy_greeks(display_legs, live_spot, live_vix, dte_days, lot_size)
+    net_delta, net_theta = compute_strategy_greeks(display_legs, live_spot, eff_vix, eff_dte, lot_size)
+    margin_info = estimate_margin_requirement(display_legs, lot_size, live_spot)
 
     return {
         "net_credit": net_credit,
@@ -250,5 +320,6 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
         "rr": rr_ratio,
         "net_delta": net_delta,
         "net_theta": net_theta,
+        "margin_info": margin_info,
         "fig": fig
     }
