@@ -62,6 +62,36 @@ api_status_badge = "🟢 LIVE NFO API" if smart_api else "🟡 SIMULATED MODE"
 # FROZEN TOP COMMAND HEADER (DOES NOT SCROLL)
 # ==============================================================================
 with st.container():
+    # --- FORCE STICKY FREEZE VIA JAVASCRIPT (WORKS ON ALL STREAMLIT VERSIONS & MOBILE) ---
+components.html(
+    """
+    <script>
+    const doc = window.parent.document;
+    function lockTopHeader() {
+        const marker = doc.querySelector('.sticky-marker');
+        if (!marker) return;
+        const container = marker.closest('[data-testid="stVerticalBlock"]');
+        if (container) {
+            container.classList.add('frozen-top-header');
+            let parent = container.parentElement;
+            while (parent && parent !== doc.body) {
+                const style = window.parent.getComputedStyle(parent);
+                if (style.overflow === 'hidden' || style.overflowY === 'hidden' || style.overflow === 'auto') {
+                    parent.style.overflow = 'visible';
+                    parent.style.overflowY = 'visible';
+                }
+                parent = parent.parentElement;
+            }
+        }
+    }
+    lockTopHeader();
+    setTimeout(lockTopHeader, 500);
+    setTimeout(lockTopHeader, 1500);
+    </script>
+    """,
+    height=0,
+    width=0
+)
     st.markdown('<div class="sticky-marker" style="display:none;"></div>', unsafe_allow_html=True)
 
     # 1. Main Title Header
@@ -116,6 +146,7 @@ with st.container():
         light_mode = st.toggle("☀️ Light", value=False, key="top_theme_toggle")
     with nav_col3:
         auto_refresh_on = st.toggle("Sync (7s)", value=True, key="top_sync_toggle")
+        import streamlit.components.v1 as components
 
 # --- LIGHT MODE VARIABLE OVERRIDE (PRESERVES ALL SEMANTIC COLORS) ---
 if light_mode:
