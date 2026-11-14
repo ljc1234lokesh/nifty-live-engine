@@ -158,20 +158,10 @@ def build_strategy_specs(strat_mode_choice, live_spot, atm_strike, live_vix, oi_
             {"type": "CE", "action": "BUY",  "strike": safe_call + 200, "note": "Call Wall Protection Wing"}
         ]
 
-def _bs_option_price(S, K, T, r, sigma, opt_type):
-    if T <= 0:
-        return np.maximum(0.0, S - K) if opt_type == "CE" else np.maximum(0.0, K - S)
-    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
-    d2 = d1 - sigma * np.sqrt(T)
-    if opt_type == "CE":
-        return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
-    else:
-        return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
-
 def compute_strategy_greeks(display_legs, live_spot, live_vix, dte_days, lot_size):
     T = max(dte_days, 0.5) / 365.0
     sigma = max(live_vix / 100.0, 0.10)
-    r = 0.065  # Risk-free rate (6.5%)
+    r = 0.065
     
     net_delta = 0.0
     net_theta_daily = 0.0
@@ -179,7 +169,7 @@ def compute_strategy_greeks(display_legs, live_spot, live_vix, dte_days, lot_siz
     for leg in display_legs:
         K = leg["strike"]
         opt_type = leg["type"]
-        action = leg["action"]  # BUY or SELL
+        action = leg["action"]
         mult = 1.0 if action == "BUY" else -1.0
         
         if T <= 0:
@@ -191,12 +181,11 @@ def compute_strategy_greeks(display_legs, live_spot, live_vix, dte_days, lot_siz
         if opt_type == "CE":
             delta = norm.cdf(d1)
             theta_annual = - (live_spot * norm.pdf(d1) * sigma) / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * norm.cdf(d2)
-        else:  # PE
+        else:
             delta = norm.cdf(d1) - 1.0
             theta_annual = - (live_spot * norm.pdf(d1) * sigma) / (2 * np.sqrt(T)) + r * K * np.exp(-r * T) * norm.cdf(-d2)
             
         theta_daily = theta_annual / 365.0
-        
         net_delta += delta * mult * lot_size
         net_theta_daily += theta_daily * mult * lot_size
         
@@ -213,7 +202,6 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
     for leg in display_legs:
         k, prem = leg["strike"], leg["premium"]
         net_credit += prem if leg["action"] == "SELL" else -prem
-        
         intrinsic = np.maximum(0, spot_range - k) if leg["type"] == "CE" else np.maximum(0, k - spot_range)
         pnl_expiry += (intrinsic - prem) if leg["action"] == "BUY" else (prem - intrinsic)
 
@@ -229,8 +217,8 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
     pop_percent = float((norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100)
     rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
-    # --- MATPLOTLIB GRAPH GENERATION (COMPACT HEIGHT) ---
-    fig, ax = plt.subplots(figsize=(7, 3.2), facecolor="#111827") # Height reduced from 4 to 3.2
+    # --- MATPLOTLIB GRAPH GENERATION ---
+    fig, ax = plt.subplots(figsize=(7, 3.2), facecolor="#111827")
     ax.set_facecolor("#111827")
 
     ax.fill_between(spot_range, pnl_exp_lot, 0, where=(pnl_exp_lot >= 0), facecolor="#10b981", alpha=0.3)
