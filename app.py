@@ -309,7 +309,7 @@ if "Quant Terminal" in nav_mode:
             # --- DETAILED TELEGRAM NOTIFICATION FOR DEPLOYMENT ---
             tg_msg = f"🚀 <b>NEW STRATEGY DEPLOYED</b>\n#{new_id}. <b>{strat_title}</b> ({display_exp})\nSaved: {ist_time_str}    Spot: ₹{live_spot:,.2f}\n"
             for lg in display_legs:
-                tg_msg += f"- {lg['action']} NIFTY {display_exp} {lg['strike']} {lg['type']} @ ₹{lg['premium']:.2f}\n"
+                tg_msg += f"• {lg['action']} NIFTY {display_exp} {lg['strike']} {lg['type']} @ ₹{lg['premium']:.2f}\n"
             
             send_telegram_alert(tg_msg)
             st.toast(f"🚀 Telegram Notification Sent: New Strategy Deployed!", icon="✅")
@@ -367,7 +367,7 @@ else:
                 act_col = "#10b981" if lg["action"] == "BUY" else "#ef4444"
                 sign_p = "+" if leg_pnl_rs >= 0 else ""
                 
-                tg_exit_legs += f"- {lg['action']} NIFTY {strat.get('expiry', '')} {lg['strike']} {lg['type']}: ₹{ent_price:.2f} → ₹{cur_p:.2f} ({sign_p}₹{leg_pnl_rs:,.0f})\n"
+                tg_exit_legs += f"• {lg['action']} NIFTY {strat.get('expiry', '')} {lg['strike']} {lg['type']}: ₹{ent_price:.2f} → ₹{cur_p:.2f} ({sign_p}₹{leg_pnl_rs:,.0f})\n"
 
                 legs_html += (
                     f'<div style="background-color:#111827; border-left:4px solid {act_col}; border:1px solid #1f2937; border-radius:4px; padding:4px 8px; margin-bottom:4px;">'
@@ -457,7 +457,7 @@ else:
                         new_legs.append({"action": lg["action"], "type": lg["type"], "strike": new_st, "entry_price": new_pr, "token": lg.get("token", ""), "symbol": lg.get("symbol", "")})
                         if new_st != lg["strike"] or new_pr != cur_ent_val:
                             updated = True
-                            tg_edit_msg += f"Leg {l_i+1}: {lg['action']} {lg['type']} -> Strike: {new_st}, Entry: ₹{new_pr}\n"
+                            tg_edit_msg += f"• Leg {l_i+1}: {lg['action']} {lg['type']} -> Strike: {new_st}, Entry: ₹{new_pr}\n"
                     
                     if st.button("💾 Save Changes", key=f"save_{strat_id}", type="primary", use_container_width=True):
                         if updated:
