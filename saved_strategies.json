@@ -12,7 +12,8 @@
         "premium": 52.5,
         "readable": "NIFTY 17-Nov 24900 PE",
         "kite_sym": "NIFTY26N1724900PE",
-        "note": "Downside Hedge Wing"
+        "note": "Downside Hedge Wing",
+        "entry_price": 54.1
       },
       {
         "type": "PE",
