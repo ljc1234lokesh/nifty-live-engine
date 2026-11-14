@@ -4,8 +4,8 @@ import datetime
 import base64
 import requests
 import numpy as np
-import plotly.graph_objects as go
 from scipy.stats import norm
+import matplotlib.pyplot as plt
 import streamlit as st
 
 STORAGE_FILE = "saved_strategies.json"
@@ -171,12 +171,10 @@ def _bs_option_price(S, K, T, r, sigma, opt_type):
 def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_size, display_exp):
     spot_range = np.linspace(live_spot - 800, live_spot + 800, 300)
     pnl_expiry = np.zeros_like(spot_range)
-    pnl_t0 = np.zeros_like(spot_range)
     net_credit = 0.0
 
     T_years = max(dte_days, 0.5) / 365.0
     sigma = max(live_vix / 100.0, 0.10)
-    r_rate = 0.065
 
     for leg in display_legs:
         k, prem = leg["strike"], leg["premium"]
@@ -185,14 +183,7 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
         intrinsic = np.maximum(0, spot_range - k) if leg["type"] == "CE" else np.maximum(0, k - spot_range)
         pnl_expiry += (intrinsic - prem) if leg["action"] == "BUY" else (prem - intrinsic)
 
-        theo_at_spot = _bs_option_price(live_spot, k, T_years, r_rate, sigma, leg["type"])
-        theo_curve = _bs_option_price(spot_range, k, T_years, r_rate, sigma, leg["type"])
-        est_live_prem = np.maximum(0.05, prem + (theo_curve - theo_at_spot))
-        pnl_t0 += (est_live_prem - prem) if leg["action"] == "BUY" else (prem - est_live_prem)
-
     pnl_exp_lot = pnl_expiry * lot_size
-    pnl_t0_lot = pnl_t0 * lot_size
-
     max_profit_lot = float(np.max(pnl_exp_lot))
     max_loss_lot = float(abs(np.min(pnl_exp_lot)))
 
@@ -204,76 +195,29 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
     pop_percent = float((norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100)
     rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
-    fig = go.Figure()
+    # --- MATPLOTLIB GRAPH GENERATION ---
+    fig, ax = plt.subplots(figsize=(7, 4), facecolor="#111827")
+    ax.set_facecolor("#111827")
 
-    pnl_pos = np.where(pnl_exp_lot >= 0, pnl_exp_lot, 0)
-    pnl_neg = np.where(pnl_exp_lot < 0, pnl_exp_lot, 0)
+    # Profit/Loss Fill Areas
+    ax.fill_between(spot_range, pnl_exp_lot, 0, where=(pnl_exp_lot >= 0), facecolor="#10b981", alpha=0.3)
+    ax.fill_between(spot_range, pnl_exp_lot, 0, where=(pnl_exp_lot < 0), facecolor="#ef4444", alpha=0.3)
 
-    fig.add_trace(go.Scatter(
-        x=spot_range, y=pnl_pos, mode="lines", line=dict(width=0),
-        fill="tozeroy", fillcolor="rgba(16, 185, 129, 0.28)",
-        hoverinfo="skip", showlegend=False
-    ))
-    fig.add_trace(go.Scatter(
-        x=spot_range, y=pnl_neg, mode="lines", line=dict(width=0),
-        fill="tozeroy", fillcolor="rgba(239, 68, 68, 0.28)",
-        hoverinfo="skip", showlegend=False
-    ))
+    line_color = "#10b981" if max_profit_lot > 0 else "#ef4444"
+    ax.plot(spot_range, pnl_exp_lot, color=line_color, linewidth=2)
+    
+    ax.axhline(0, color="#475569", linestyle="--", linewidth=1.5)
+    ax.axvline(live_spot, color="#38bdf8", linestyle=":", linewidth=2, label=f"Spot: {live_spot:.0f}")
 
-    fig.add_trace(go.Scatter(
-        x=spot_range, y=pnl_exp_lot, mode="lines",
-        name="Expiry P&L",
-        line=dict(color="#10b981", width=2.6),
-        hovertemplate="<b>Expiry P&L:</b> ₹%{y:,.0f}<extra></extra>"
-    ))
+    ax.set_title(f"Expiry Payoff ({display_exp}) | BE: {lower_be:.0f} - {upper_be:.0f}", color="#f8fafc", fontsize=11, pad=12)
+    ax.set_xlabel("NIFTY Spot Price", color="#94a3b8", fontsize=9)
+    ax.set_ylabel(f"P&L (₹ / {lot_size} Qty)", color="#94a3b8", fontsize=9)
 
-    fig.add_trace(go.Scatter(
-        x=spot_range, y=pnl_t0_lot, mode="lines",
-        name="Target Today (T+0)",
-        line=dict(color="#38bdf8", width=2, dash="dot"),
-        hovertemplate="<b>Today (T+0) P&L:</b> ₹%{y:,.0f}<extra></extra>"
-    ))
+    ax.tick_params(colors="#94a3b8", labelsize=9)
+    for spine in ax.spines.values():
+        spine.set_edgecolor("#1f2937")
 
-    fig.add_hline(y=0, line_dash="dash", line_color="#94a3b8", line_width=1)
-    fig.add_vline(x=live_spot, line_dash="dot", line_color="#f59e0b", line_width=1.8,
-                  annotation_text=f"Spot: {live_spot:.0f}", annotation_position="top",
-                  annotation_font=dict(color="#f59e0b", size=10))
-    fig.add_vline(x=lower_be, line_dash="dash", line_color="#94a3b8", line_width=1,
-                  annotation_text=f"BE: {lower_be:.0f}", annotation_position="bottom left",
-                  annotation_font=dict(color="#94a3b8", size=9))
-    fig.add_vline(x=upper_be, line_dash="dash", line_color="#94a3b8", line_width=1,
-                  annotation_text=f"BE: {upper_be:.0f}", annotation_position="bottom right",
-                  annotation_font=dict(color="#94a3b8", size=9))
-
-    fig.update_layout(
-        title=dict(
-            text=f"<b>Interactive Payoff ({display_exp})</b> | Breakeven: {lower_be:.0f} – {upper_be:.0f}",
-            font=dict(color="#e2e8f0", size=12.5), x=0.01, y=0.96
-        ),
-        paper_bgcolor="#0b0f19",
-        plot_bgcolor="#111827",
-        font=dict(color="#e2e8f0", size=11),
-        margin=dict(l=10, r=10, t=38, b=10),
-        height=340,
-        hovermode="x unified",
-        hoverlabel=dict(bgcolor="#111827", font_size=11, font_color="#e2e8f0", bordercolor="#1f2937"),
-        xaxis=dict(
-            title="NIFTY Spot Price",
-            gridcolor="#1f2937", zeroline=False,
-            tickfont=dict(color="#94a3b8", size=10),
-            spikemode="across", spikesnap="cursor", spikecolor="#f59e0b", spikethickness=1
-        ),
-        yaxis=dict(
-            title=f"P&L (₹ / {lot_size} Qty)",
-            gridcolor="#1f2937", zeroline=False,
-            tickfont=dict(color="#94a3b8", size=10)
-        ),
-        legend=dict(
-            orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1,
-            bgcolor="rgba(0,0,0,0)", font=dict(color="#e2e8f0", size=10)
-        ),
-        dragmode="pan"
-    )
+    fig.tight_layout()
 
     return {
         "net_credit": net_credit,
