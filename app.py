@@ -20,7 +20,6 @@ from strategy_engine import (
     compute_payoff_and_chart
 )
 
-# --- PAGE CONFIG ---
 st.set_page_config(
     page_title="NIFTY Institutional Quant Terminal",
     page_icon="📊",
@@ -28,18 +27,15 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- LOAD EXTERNAL BASE CSS ---
 if os.path.exists("style.css"):
     with open("style.css") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
-# --- SESSION STATE INITIALIZATION ---
 if "saved_strategies" not in st.session_state:
     st.session_state.saved_strategies = load_saved_strategies()
 if "alerted_ids" not in st.session_state:
     st.session_state.alerted_ids = set()
 
-# --- API AUTHENTICATION & MASTER DATA ---
 API_KEY = st.secrets.get("ANGEL_API_KEY", "")
 CLIENT_CODE = st.secrets.get("ANGEL_CLIENT_CODE", "")
 PASSWORD = st.secrets.get("ANGEL_PASSWORD", "")
@@ -58,13 +54,9 @@ active_count = len(st.session_state.saved_strategies)
 api_status_badge = "🟢 LIVE NFO API" if smart_api else "🟡 SIMULATED MODE"
 api_badge_color = "#10b981" if smart_api else "#f59e0b"
 
-# ==============================================================================
-# FIXED TOP COMMAND HEADER (LOCKED TO VIEWPORT TOP)
-# ==============================================================================
 with st.container():
     st.markdown('<div class="sticky-header-target"></div>', unsafe_allow_html=True)
     
-    # --- COMPACT TOP HEADER TITLE ---
     st.markdown(
         f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:6px; padding:6px 12px; margin-bottom:4px;">'
         f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">'
@@ -79,7 +71,6 @@ with st.container():
         unsafe_allow_html=True
     )
 
-    # --- COMPACT TOP MARKET TICKER BAR ---
     ticker_html = (
         '<style>'
         '.ticker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 4px; } '
@@ -115,7 +106,6 @@ with st.container():
     )
     st.markdown(ticker_html, unsafe_allow_html=True)
 
-    # --- COMMAND NAVIGATION & 7s SYNC TOGGLE BAR ---
     nav_col1, nav_col2 = st.columns([3, 1])
     with nav_col1:
         nav_mode = st.radio(
@@ -131,9 +121,6 @@ with st.container():
 if auto_refresh_on:
     st_autorefresh(interval=7 * 1000, key="terminal_fixed_sync_v10")
 
-# ==============================================================================
-# WORKSPACE 1: QUANT TERMINAL (STRATEGY BUILDER & ANALYTICS)
-# ==============================================================================
 if "Quant Terminal" in nav_mode:
     today_dt = ist_now.date()
     valid_exps = sorted([d for d in nfo_df["expiry_dt"].dropna().unique() if d >= today_dt])[:4]
@@ -178,7 +165,6 @@ if "Quant Terminal" in nav_mode:
     pcr_sentiment = "Bullish Support" if live_pcr >= 1.15 else ("Bearish Pressure" if live_pcr <= 0.78 else "Neutral / Range")
     pcr_color = "#10b981" if live_pcr >= 1.0 else "#f59e0b"
 
-    # --- 4 COMPACT INSTITUTIONAL METRIC CARDS ---
     metrics_html = (
         '<style>'
         '.metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 4px; } '
@@ -214,7 +200,6 @@ if "Quant Terminal" in nav_mode:
     )
     st.markdown(metrics_html, unsafe_allow_html=True)
 
-    # --- COMPACT MARKET TIMING BANNER ---
     st.markdown(
         f'<div style="background-color:#111827; border-left:4px solid {badge_color}; border:1px solid #1f2937; border-radius:4px; padding:4px 10px; margin:2px 0 6px 0;">'
         f'<span style="font-weight:800; font-size:0.75rem; color:{badge_color};">{market_badge}</span>'
@@ -223,7 +208,6 @@ if "Quant Terminal" in nav_mode:
         unsafe_allow_html=True
     )
 
-    # --- STRATEGY GENERATION ---
     strat_title, strat_desc, raw_legs = build_strategy_specs(strat_mode_choice, live_spot, atm_strike, live_vix, oi_data)
     exp_nfo = nfo_df[nfo_df["expiry_dt"] == selected_exp_dt]
     lot_size = int(exp_nfo["lotsize_int"].iloc[0]) if not exp_nfo.empty else 65
@@ -256,9 +240,16 @@ if "Quant Terminal" in nav_mode:
             "symbol": kite_sym
         })
 
-    payoff_res = compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_size, display_exp)
+    with st.expander("🎛️ IV Crush & DTE Scenario Simulator", expanded=False):
+        sim_c1, sim_c2 = st.columns(2)
+        with sim_c1:
+            sim_vix_shift = st.slider("Volatility Shift (Δ VIX %)", min_value=-10.0, max_value=10.0, value=0.0, step=0.5, key="sim_vix_slider")
+        with sim_c2:
+            sim_dte_override = st.slider("Days to Expiry (DTE) Override", min_value=0, max_value=max(dte_days, 30), value=dte_days, step=1, key="sim_dte_slider")
 
-    # --- RESPONSIVE SIDE-BY-SIDE LAYOUT (Legs Left, Graph Right) ---
+    payoff_res = compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_size, display_exp, sim_vix_shift=sim_vix_shift, sim_dte_override=sim_dte_override)
+    margin_info = payoff_res["margin_info"]
+
     col_legs, col_chart = st.columns([1, 1.3], gap="medium")
     
     with col_legs:
@@ -291,6 +282,17 @@ if "Quant Terminal" in nav_mode:
                 unsafe_allow_html=True
             )
 
+        st.markdown(
+            f'<div style="background-color:#111827; border:1px solid #374151; border-radius:6px; padding:8px 10px; margin-top:6px; margin-bottom:6px;">'
+            f'<div style="font-size:0.72rem; font-weight:700; color:#38bdf8; text-transform:uppercase; margin-bottom:4px;">💰 Margin & Capital Estimator ({margin_info["margin_type"]})</div>'
+            f'<div style="display:flex; justify-content:space-between; font-size:0.75rem; font-weight:700;">'
+            f'<div><span style="color:#94a3b8;">Span:</span> <span style="color:#f8fafc;">₹{margin_info["span_margin"]:,.0f}</span></div>'
+            f'<div><span style="color:#94a3b8;">Exposure:</span> <span style="color:#f8fafc;">₹{margin_info["exposure_margin"]:,.0f}</span></div>'
+            f'<div><span style="color:#94a3b8;">Total:</span> <span style="color:#34d399; font-size:0.85rem;">₹{margin_info["total_margin"]:,.0f}</span></div>'
+            f'</div></div>',
+            unsafe_allow_html=True
+        )
+
         if st.button("🚀 Deploy & Save to Live P&L Tracker", use_container_width=True, type="primary"):
             new_id = len(st.session_state.saved_strategies) + 1
             new_entry = {
@@ -320,9 +322,6 @@ if "Quant Terminal" in nav_mode:
     with col_chart:
         st.pyplot(payoff_res["fig"], use_container_width=True)
 
-# ==============================================================================
-# WORKSPACE 2: SAVED LIVE TRACKER & P&L DESK WITH AGGREGATED PORTFOLIO SUMMARY
-# ==============================================================================
 else:
     t_c1, t_c2 = st.columns([3, 1])
     with t_c1:
@@ -340,12 +339,12 @@ else:
         all_tokens = [lg.get("token", "") for s in st.session_state.saved_strategies for lg in s.get("legs", []) if lg.get("token")]
         tracker_ltps = fetch_batch_ltps(smart_api, all_tokens)
 
-        # --- AGGREGATED PORTFOLIO CALCULATIONS ---
         total_portfolio_pnl = 0.0
         total_portfolio_delta = 0.0
         total_portfolio_theta = 0.0
         total_max_risk = 0.0
         total_max_profit = 0.0
+        total_portfolio_margin = 0.0
 
         portfolio_strat_data = []
         for idx, strat in enumerate(st.session_state.saved_strategies):
@@ -389,6 +388,7 @@ else:
             payoff_calc = compute_payoff_and_chart(strat_display_legs, ent_spot, live_vix, 1, lot_q, strat.get("expiry", ""))
             total_portfolio_delta += payoff_calc["net_delta"]
             total_portfolio_theta += payoff_calc["net_theta"]
+            total_portfolio_margin += payoff_calc["margin_info"]["total_margin"]
             
             max_p_val = float(strat.get("max_profit", payoff_calc["max_profit"]))
             max_l_val = float(strat.get("max_loss", payoff_calc["max_loss"]))
@@ -402,7 +402,6 @@ else:
                 "tg_exit_legs": tg_exit_legs, "max_p_val": max_p_val, "max_l_val": max_l_val, "payoff_calc": payoff_calc
             })
 
-        # --- RENDER AGGREGATED PORTFOLIO SUMMARY BANNER ---
         port_col_color = "#10b981" if total_portfolio_pnl >= 0 else "#ef4444"
         port_sign = "+" if total_portfolio_pnl >= 0 else ""
         st.markdown(
@@ -412,13 +411,12 @@ else:
             f'<div><div style="font-size: 0.65rem; color: #94a3b8;">Total Running P&L</div><div style="font-size: 1.15rem; font-weight: 800; color: {port_col_color};">{port_sign}₹{total_portfolio_pnl:,.0f}</div></div>'
             f'<div><div style="font-size: 0.65rem; color: #94a3b8;">Combined Net Delta</div><div style="font-size: 1.05rem; font-weight: 800; color: #38bdf8;">{total_portfolio_delta:+,.1f}</div></div>'
             f'<div><div style="font-size: 0.65rem; color: #94a3b8;">Combined Daily Theta</div><div style="font-size: 1.05rem; font-weight: 800; color: #f59e0b;">₹{total_portfolio_theta:+,.0f}/day</div></div>'
+            f'<div><div style="font-size: 0.65rem; color: #94a3b8;">Total Margin Blocked</div><div style="font-size: 1.05rem; font-weight: 800; color: #34d399;">₹{total_portfolio_margin:,.0f}</div></div>'
             f'<div><div style="font-size: 0.65rem; color: #94a3b8;">Total Max Risk</div><div style="font-size: 1.05rem; font-weight: 800; color: #ef4444;">₹{total_max_risk:,.0f}</div></div>'
-            f'<div><div style="font-size: 0.65rem; color: #94a3b8;">Total Max Profit</div><div style="font-size: 1.05rem; font-weight: 800; color: #10b981;">₹{total_max_profit:,.0f}</div></div>'
             f'</div></div>',
             unsafe_allow_html=True
         )
 
-        # --- RENDER INDIVIDUAL STRATEGY CARDS ---
         for item in portfolio_strat_data:
             idx = item["idx"]
             strat = item["strat"]
@@ -438,7 +436,6 @@ else:
             net_col = "#10b981" if net_pnl_rs >= 0 else "#ef4444"
             net_sign = "+" if net_pnl_rs >= 0 else ""
 
-            # --- AUTO STOP-LOSS CHECK ---
             sl_limit = float(strat.get("stop_loss_limit", -2000.0))
             alert_key = f"sl_alerted_{strat_id}"
 
@@ -461,7 +458,7 @@ else:
                 f'<span style="color:#ef4444;">Max Risk: ₹{max_l_val:,.0f}</span>'
                 f'<span style="color:#38bdf8;">Net Delta: {payoff_calc["net_delta"]:+,.1f}</span>'
                 f'<span style="color:#f59e0b;">Net Theta: ₹{payoff_calc["net_theta"]:+,.0f}/d</span>'
-                f'<span style="color:#f8fafc;">Lot: {lot_q}</span>'
+                f'<span style="color:#34d399;">Margin: ₹{payoff_calc["margin_info"]["total_margin"]:,.0f}</span>'
                 f'</div>'
                 f'<div style="font-size:1rem; font-weight:800; color:#f8fafc; margin-bottom:8px;">Running P&L: <span style="color:{net_col};">{net_sign}₹{net_pnl_rs:,.0f} ({total_pnl_pts:+.2f} pts)</span></div>'
                 f'{legs_html}'
@@ -474,7 +471,6 @@ else:
             with c_info:
                 st.markdown(card_html, unsafe_allow_html=True)
                 
-                # --- 3 BUTTONS SIDE BY SIDE ---
                 btn_c1, btn_c2, btn_c3 = st.columns(3)
                 
                 with btn_c1:
@@ -502,7 +498,6 @@ else:
                         save_strategies_to_disk(st.session_state.saved_strategies)
                         st.rerun()
 
-                # --- DYNAMIC EDIT FORM ---
                 if st.session_state.get(f"edit_mode_{strat_id}", False):
                     st.markdown("<div style='background-color:#1e293b; padding:12px; border-radius:6px; margin-top:8px;'>", unsafe_allow_html=True)
                     st.markdown("<div style='color:#f8fafc; font-weight:bold; font-size:0.9rem; margin-bottom:10px;'>Update Strikes, Entry & Stop-Loss</div>", unsafe_allow_html=True)
@@ -544,7 +539,7 @@ else:
                         st.session_state[f"edit_mode_{strat_id}"] = False
                         st.rerun()
                         
-                    st.markdown("div", unsafe_allow_html=True) # wait, let's keep valid closing tag
+                    st.markdown("</div>", unsafe_allow_html=True)
             
             with c_graph:
                 st.pyplot(payoff_calc["fig"], use_container_width=True)
