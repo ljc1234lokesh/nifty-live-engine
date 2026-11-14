@@ -13,34 +13,34 @@
       {
         "action": "BUY",
         "type": "PE",
-        "strike": 24950,
-        "entry_price": 59.2,
-        "token": "45385",
-        "symbol": "NIFTY17NOV2624950PE"
+        "strike": 24900,
+        "entry_price": 52.5,
+        "token": "45383",
+        "symbol": "NIFTY17NOV2624900PE"
       },
       {
         "action": "SELL",
         "type": "PE",
-        "strike": 25150,
-        "entry_price": 135.95,
-        "token": "45393",
-        "symbol": "NIFTY17NOV2625150PE"
+        "strike": 25100,
+        "entry_price": 123.4,
+        "token": "45391",
+        "symbol": "NIFTY17NOV2625100PE"
       },
       {
         "action": "SELL",
         "type": "CE",
-        "strike": 25150,
-        "entry_price": 136.85,
-        "token": "45392",
-        "symbol": "NIFTY17NOV2625150CE"
+        "strike": 25100,
+        "entry_price": 150.75,
+        "token": "45390",
+        "symbol": "NIFTY17NOV2625100CE"
       },
       {
         "action": "BUY",
         "type": "CE",
-        "strike": 25350,
-        "entry_price": 62.0,
-        "token": "45404",
-        "symbol": "NIFTY17NOV2625350CE"
+        "strike": 25300,
+        "entry_price": 69.55,
+        "token": "45402",
+        "symbol": "NIFTY17NOV2625300CE"
       }
     ]
   }
