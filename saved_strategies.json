@@ -23,7 +23,8 @@
         "premium": 123.4,
         "readable": "NIFTY 17-Nov 25100 PE",
         "kite_sym": "NIFTY26N1725100PE",
-        "note": "ATM Put Sell (25100 Pin)"
+        "note": "ATM Put Sell (25100 Pin)",
+        "entry_price": 150.45
       },
       {
         "type": "CE",
