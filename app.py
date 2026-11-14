@@ -266,11 +266,12 @@ if "Quant Terminal" in nav_mode:
             f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:6px; padding:10px; margin-bottom:6px;">'
             f'<div style="font-size:0.95rem; font-weight:800; color:#38bdf8;">🎯 {strat_title}</div>'
             f'<div style="font-size:0.72rem; color:#94a3b8; margin-top:1px;">{strat_desc}</div>'
-            f'<div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:6px; font-size:0.75rem; font-weight:700;">'
+            f'<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:6px; font-size:0.75rem; font-weight:700;">'
             f'<span style="color:#10b981;">Max Profit: ₹{payoff_res["max_profit"]:,.0f}</span>'
             f'<span style="color:#ef4444;">Max Risk: ₹{payoff_res["max_loss"]:,.0f}</span>'
             f'<span style="color:#a855f7;">Win Prob: {payoff_res["pop"]:.1f}%</span>'
-            f'<span style="color:#f59e0b;">Lot: {lot_size}</span>'
+            f'<span style="color:#38bdf8;">Net Delta: {payoff_res["net_delta"]:+,.1f}</span>'
+            f'<span style="color:#f59e0b;">Net Theta: ₹{payoff_res["net_theta"]:+,.0f}/day</span>'
             f'</div></div>',
             unsafe_allow_html=True
         )
