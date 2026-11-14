@@ -45,7 +45,8 @@
         "premium": 69.55,
         "readable": "NIFTY 17-Nov 25300 CE",
         "kite_sym": "NIFTY26N1725300CE",
-        "note": "Upside Hedge Wing"
+        "note": "Upside Hedge Wing",
+        "entry_price": 70.0
       }
     ],
     "max_profit": 9803.510869565203,
