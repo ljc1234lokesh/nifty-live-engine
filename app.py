@@ -64,27 +64,27 @@ api_badge_color = "#10b981" if smart_api else "#f59e0b"
 with st.container():
     st.markdown('<div class="sticky-header-target"></div>', unsafe_allow_html=True)
     
-    # --- TOP HEADER TITLE ---
+    # --- COMPACT TOP HEADER TITLE ---
     st.markdown(
-        f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px 14px; margin-bottom:8px;">'
-        f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">'
+        f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:6px; padding:6px 12px; margin-bottom:4px;">'
+        f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">'
         f'<div>'
-        f'<div style="font-size:1.05rem; font-weight:800; letter-spacing:0.4px; color:#f8fafc;">📊 NIFTY INSTITUTIONAL QUANT TERMINAL</div>'
-        f'<div style="font-size:0.72rem; color:#38bdf8;">Advanced Delta & OI-Synced Options Analytics & Live Tracker</div>'
+        f'<div style="font-size:1rem; font-weight:800; color:#f8fafc;">📊 NIFTY INSTITUTIONAL QUANT TERMINAL</div>'
+        f'<div style="font-size:0.68rem; color:#38bdf8;">Advanced Delta & OI-Synced Options Analytics & Live Tracker</div>'
         f'</div>'
-        f'<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">'
-        f'<span style="background:#1e293b; color:#e2e8f0; padding:3px 8px; border-radius:5px; font-size:0.72rem; font-weight:600;">🕒 {ist_time_str} | Active: {active_count}</span>'
-        f'<span style="background:#1e293b; color:{api_badge_color}; padding:3px 8px; border-radius:5px; font-size:0.72rem; font-weight:600;">{api_status_badge}</span>'
+        f'<div style="display:flex; gap:6px; align-items:center;">'
+        f'<span style="background:#1e293b; color:#e2e8f0; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:600;">🕒 {ist_time_str} | Active: {active_count}</span>'
+        f'<span style="background:#1e293b; color:{api_badge_color}; padding:2px 6px; border-radius:4px; font-size:0.7rem; font-weight:600;">{api_status_badge}</span>'
         f'</div></div></div>',
         unsafe_allow_html=True
     )
 
-    # --- TOP MARKET TICKER BAR (Custom Responsive 2x2 Grid on Mobile, Flattened HTML) ---
+    # --- COMPACT TOP MARKET TICKER BAR ---
     ticker_html = (
         '<style>'
-        '.ticker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; } '
+        '.ticker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 4px; } '
         '@media (max-width: 768px) { .ticker-grid { grid-template-columns: repeat(2, 1fr); } } '
-        '.ticker-box { background-color: #111827; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 8px; text-align: center; }'
+        '.ticker-box { background-color: #111827; border: 1px solid #1f2937; border-radius: 4px; padding: 4px 6px; text-align: center; }'
         '</style>'
         '<div class="ticker-grid">'
     )
@@ -99,23 +99,19 @@ with st.container():
         
         ticker_html += (
             f'<div class="ticker-box">'
-            f'<div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">'
+            f'<div style="font-weight: 700; font-size: 0.8rem; color: #f8fafc;">'
             f'{name}: <span style="color: {css_color}; font-weight: 700;">₹{ltp:,.2f}</span> '
-            f'<span style="color: #94a3b8; font-size: 0.8rem; font-weight: normal;">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>'
+            f'<span style="color: #94a3b8; font-size: 0.75rem;">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>'
             f'</div>'
-            f'<div style="font-size: 0.65rem; color: #94a3b8; margin-top: 2px;">'
-            f'O: {d["open"]:,.1f} | H: {d["high"]:,.1f} | L: {d["low"]:,.1f} | C: {close:,.1f}'
-            f'</div>'
+            f'<div style="font-size: 0.6rem; color: #94a3b8; margin-top: 1px;">O: {d["open"]:,.1f} | H: {d["high"]:,.1f} | L: {d["low"]:,.1f} | C: {close:,.1f}</div>'
             f'</div>'
         )
         
     ticker_html += (
         f'<div class="ticker-box" style="display: flex; flex-direction: column; justify-content: center;">'
-        f'<div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">'
+        f'<div style="font-weight: 700; font-size: 0.8rem; color: #f8fafc;">'
         f'INDIA VIX: <span style="color: #38bdf8; font-weight: 800;">{live_vix:.2f}</span>'
-        f'</div>'
-        f'</div>'
-        f'</div>'
+        f'</div></div></div>'
     )
     st.markdown(ticker_html, unsafe_allow_html=True)
 
@@ -135,8 +131,6 @@ with st.container():
 if auto_refresh_on:
     st_autorefresh(interval=7 * 1000, key="terminal_fixed_sync_v10")
 
-st.markdown("<hr style='margin: 4px 0 10px 0; border-color: #1f2937;'>", unsafe_allow_html=True)
-
 # ==============================================================================
 # WORKSPACE 1: QUANT TERMINAL (STRATEGY BUILDER & ANALYTICS)
 # ==============================================================================
@@ -147,29 +141,34 @@ if "Quant Terminal" in nav_mode:
         valid_exps = [today_dt + datetime.timedelta(days=7)]
 
     exp_labels = {d: f"{d.strftime('%d-%b')} ({(d - today_dt).days}d)" for d in valid_exps}
-    sel_exp_label = st.radio(
-        "Expiry Selection",
-        list(exp_labels.values()),
-        horizontal=True,
-        label_visibility="collapsed",
-        key="exp_selector"
-    )
+    
+    # --- PUTTING EXPIRY SELECTION AND STRATEGY ENGINE SIDE-BY-SIDE ---
+    opt_c1, opt_c2 = st.columns([1.5, 1])
+    with opt_c1:
+        sel_exp_label = st.radio(
+            "Expiry Selection",
+            list(exp_labels.values()),
+            horizontal=True,
+            label_visibility="collapsed",
+            key="exp_selector"
+        )
+    with opt_c2:
+        strat_mode_choice = st.selectbox(
+            "Strategy Engine",
+            [
+                "🤖 AI Auto-Select (OI-Synced)",
+                "🦅 Short Iron Condor (Range Bound)",
+                "🦋 Short Iron Butterfly (ATM Pinning)",
+                "🐻 Bear Call Credit Spread (Resistance)",
+                "🐂 Bull Put Credit Spread (Support)"
+            ],
+            label_visibility="collapsed",
+            key="strat_mode_select"
+        )
+
     selected_exp_dt = [d for d, lbl in exp_labels.items() if lbl == sel_exp_label][0]
     dte_days = max((selected_exp_dt - today_dt).days, 1)
     display_exp = selected_exp_dt.strftime("%d-%b")
-
-    strat_mode_choice = st.selectbox(
-        "Strategy Engine",
-        [
-            "🤖 AI Auto-Select (OI-Synced)",
-            "🦅 Short Iron Condor (Range Bound)",
-            "🦋 Short Iron Butterfly (ATM Pinning)",
-            "🐻 Bear Call Credit Spread (Resistance)",
-            "🐂 Bull Put Credit Spread (Support)"
-        ],
-        label_visibility="collapsed",
-        key="strat_mode_select"
-    )
 
     oi_data = get_live_option_chain_oi(smart_api, nfo_df, selected_exp_dt.isoformat(), atm_strike)
     live_pcr = oi_data["pcr"]
@@ -180,54 +179,53 @@ if "Quant Terminal" in nav_mode:
     pcr_sentiment = "Bullish Support" if live_pcr >= 1.15 else ("Bearish Pressure" if live_pcr <= 0.78 else "Neutral / Range")
     pcr_color = "#10b981" if live_pcr >= 1.0 else "#f59e0b"
 
-    # --- 4 INSTITUTIONAL METRIC CARDS (Custom Responsive 2x2 Grid on Mobile, Flattened HTML) ---
+    # --- 4 COMPACT INSTITUTIONAL METRIC CARDS ---
     metrics_html = (
         '<style>'
-        '.metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 8px; } '
+        '.metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 4px; } '
         '@media (max-width: 768px) { .metrics-grid { grid-template-columns: repeat(2, 1fr); } } '
-        '.metric-box { background-color: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 10px 12px; }'
+        '.metric-box { background-color: #111827; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 10px; }'
         '</style>'
         '<div class="metrics-grid">'
         
         f'<div class="metric-box">'
-        f'<div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">LIVE PCR (🟢)</div>'
-        f'<div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">{live_pcr:.2f}</div>'
-        f'<div style="font-size:0.72rem; color:{pcr_color}; font-weight:600;">{pcr_sentiment}</div>'
+        f'<div style="font-size:0.65rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">LIVE PCR (🟢)</div>'
+        f'<div style="font-size:1.15rem; font-weight:800; color:#f8fafc; margin:1px 0;">{live_pcr:.2f}</div>'
+        f'<div style="font-size:0.68rem; color:{pcr_color}; font-weight:600;">{pcr_sentiment}</div>'
         f'</div>'
         
         f'<div class="metric-box">'
-        f'<div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">MAX PAIN</div>'
-        f'<div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">₹{live_max_pain}</div>'
-        f'<div style="font-size:0.72rem; color:#a855f7; font-weight:600;">Expiry Magnet</div>'
+        f'<div style="font-size:0.65rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">MAX PAIN</div>'
+        f'<div style="font-size:1.15rem; font-weight:800; color:#f8fafc; margin:1px 0;">₹{live_max_pain}</div>'
+        f'<div style="font-size:0.68rem; color:#a855f7; font-weight:600;">Expiry Magnet</div>'
         f'</div>'
         
         f'<div class="metric-box">'
-        f'<div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">PUT SUPPORT</div>'
-        f'<div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">₹{put_wall}</div>'
-        f'<div style="font-size:0.72rem; color:#10b981; font-weight:600;">OI: {oi_data["put_wall_oi"]:,}</div>'
+        f'<div style="font-size:0.65rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">PUT SUPPORT</div>'
+        f'<div style="font-size:1.15rem; font-weight:800; color:#f8fafc; margin:1px 0;">₹{put_wall}</div>'
+        f'<div style="font-size:0.68rem; color:#10b981; font-weight:600;">OI: {oi_data["put_wall_oi"]:,}</div>'
         f'</div>'
         
         f'<div class="metric-box">'
-        f'<div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">CALL RESISTANCE</div>'
-        f'<div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">₹{call_wall}</div>'
-        f'<div style="font-size:0.72rem; color:#ef4444; font-weight:600;">OI: {oi_data["call_wall_oi"]:,}</div>'
+        f'<div style="font-size:0.65rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">CALL RESISTANCE</div>'
+        f'<div style="font-size:1.15rem; font-weight:800; color:#f8fafc; margin:1px 0;">₹{call_wall}</div>'
+        f'<div style="font-size:0.68rem; color:#ef4444; font-weight:600;">OI: {oi_data["call_wall_oi"]:,}</div>'
         f'</div>'
         '</div>'
     )
     st.markdown(metrics_html, unsafe_allow_html=True)
 
-    # --- MARKET TIMING BANNER ---
+    # --- COMPACT MARKET TIMING BANNER ---
     st.markdown(
-        f'<div style="background-color:#111827; border-left:4px solid {badge_color}; border-top:1px solid #1f2937; border-right:1px solid #1f2937; border-bottom:1px solid #1f2937; border-radius:6px; padding:8px 12px; margin:6px 0 10px 0;">'
-        f'<span style="font-weight:800; font-size:0.82rem; color:{badge_color};">{market_badge}</span>'
-        f'<span style="font-size:0.78rem; color:#94a3b8; margin-left:8px;">— {timing_advice}</span>'
+        f'<div style="background-color:#111827; border-left:4px solid {badge_color}; border:1px solid #1f2937; border-radius:4px; padding:4px 10px; margin:2px 0 6px 0;">'
+        f'<span style="font-weight:800; font-size:0.75rem; color:{badge_color};">{market_badge}</span>'
+        f'<span style="font-size:0.72rem; color:#94a3b8; margin-left:8px;">— {timing_advice}</span>'
         f'</div>',
         unsafe_allow_html=True
     )
 
-    # --- STRATEGY GENERATION & LIVE LEG PREMIUMS ---
+    # --- STRATEGY GENERATION ---
     strat_title, strat_desc, raw_legs = build_strategy_specs(strat_mode_choice, live_spot, atm_strike, live_vix, oi_data)
-
     exp_nfo = nfo_df[nfo_df["expiry_dt"] == selected_exp_dt]
     lot_size = int(exp_nfo["lotsize_int"].iloc[0]) if not exp_nfo.empty else 65
 
@@ -241,7 +239,6 @@ if "Quant Terminal" in nav_mode:
             leg_token_map[idx] = tok
 
     live_ltps = fetch_batch_ltps(smart_api, leg_tokens)
-
     display_legs = []
     for idx, lg in enumerate(raw_legs):
         tok = leg_token_map.get(idx, "")
@@ -260,47 +257,42 @@ if "Quant Terminal" in nav_mode:
             "symbol": kite_sym
         })
 
-    # --- COMPUTE PAYOFF (MATPLOTLIB) ---
-    payoff_res = compute_payoff_and_chart(
-        display_legs, live_spot, live_vix, dte_days, lot_size, display_exp
-    )
+    payoff_res = compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_size, display_exp)
 
     # --- RESPONSIVE SIDE-BY-SIDE LAYOUT (Legs Left, Graph Right) ---
     col_legs, col_chart = st.columns([1, 1.3], gap="medium")
     
     with col_legs:
-        # Title Card
+        # Compact Title Card
         st.markdown(
-            f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:12px; margin-bottom:8px;">'
-            f'<div style="font-size:1.05rem; font-weight:800; color:#38bdf8;">🎯 {strat_title}</div>'
-            f'<div style="font-size:0.78rem; color:#94a3b8; margin-top:2px;">{strat_desc}</div>'
-            f'<div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:0.82rem; font-weight:700;">'
+            f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:6px; padding:10px; margin-bottom:6px;">'
+            f'<div style="font-size:0.95rem; font-weight:800; color:#38bdf8;">🎯 {strat_title}</div>'
+            f'<div style="font-size:0.72rem; color:#94a3b8; margin-top:1px;">{strat_desc}</div>'
+            f'<div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:6px; font-size:0.75rem; font-weight:700;">'
             f'<span style="color:#10b981;">Max Profit: ₹{payoff_res["max_profit"]:,.0f}</span>'
             f'<span style="color:#ef4444;">Max Risk: ₹{payoff_res["max_loss"]:,.0f}</span>'
-            f'<span style="color:#a855f7;">Win Prob (POP): {payoff_res["pop"]:.1f}%</span>'
+            f'<span style="color:#a855f7;">Win Prob: {payoff_res["pop"]:.1f}%</span>'
             f'<span style="color:#f59e0b;">Lot: {lot_size}</span>'
             f'</div></div>',
             unsafe_allow_html=True
         )
 
-        # Execution Legs Table
-        st.markdown("#### 📋 Strategy Execution Legs")
+        # Compact Execution Legs Table
         for i, lg in enumerate(display_legs, 1):
             act_col = "#10b981" if lg["action"] == "BUY" else "#ef4444"
             st.markdown(
-                f'<div style="background-color:#111827; border-left:4px solid {act_col}; border-top:1px solid #1f2937; border-right:1px solid #1f2937; border-bottom:1px solid #1f2937; border-radius:6px; padding:8px 12px; margin-bottom:6px;">'
+                f'<div style="background-color:#111827; border-left:4px solid {act_col}; border:1px solid #1f2937; border-radius:4px; padding:6px 10px; margin-bottom:4px;">'
                 f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">'
                 f'<div>'
-                f'<span style="font-weight:800; color:{act_col};">Leg {i}: {lg["action"]}</span> '
-                f'<span style="font-weight:700; color:#f8fafc; margin-left:6px;">NIFTY {display_exp} {lg["strike"]} {lg["type"]}</span> '
-                f'<span style="font-size:0.72rem; color:#94a3b8; margin-left:8px;">({lg["note"]})</span>'
+                f'<span style="font-weight:800; font-size:0.8rem; color:{act_col};">Leg {i}: {lg["action"]}</span> '
+                f'<span style="font-weight:700; font-size:0.8rem; color:#f8fafc; margin-left:4px;">NIFTY {display_exp} {lg["strike"]} {lg["type"]}</span> '
+                f'<span style="font-size:0.65rem; color:#94a3b8; margin-left:6px;">({lg["note"]})</span>'
                 f'</div>'
-                f'<div style="font-weight:800; font-size:0.9rem; color:#f8fafc;">LTP: ₹{lg["premium"]:.2f}</div>'
+                f'<div style="font-weight:800; font-size:0.85rem; color:#f8fafc;">LTP: ₹{lg["premium"]:.2f}</div>'
                 f'</div></div>',
                 unsafe_allow_html=True
             )
 
-        # Save Button
         if st.button("🚀 Deploy & Save to Live P&L Tracker", use_container_width=True, type="primary"):
             new_entry = {
                 "id": int(datetime.datetime.now().timestamp()),
@@ -311,40 +303,28 @@ if "Quant Terminal" in nav_mode:
                 "lot_size": lot_size,
                 "max_profit": round(payoff_res["max_profit"]),
                 "max_loss": round(payoff_res["max_loss"]),
-                "legs": [
-                    {
-                        "action": l["action"],
-                        "type": l["type"],
-                        "strike": l["strike"],
-                        "entry_price": l["premium"],
-                        "token": l["token"],
-                        "symbol": l["symbol"]
-                    }
-                    for l in display_legs
-                ]
+                "legs": [{"action": l["action"], "type": l["type"], "strike": l["strike"], "entry_price": l["premium"], "token": l["token"], "symbol": l["symbol"]} for l in display_legs]
             }
             st.session_state.saved_strategies.append(new_entry)
             save_strategies_to_disk(st.session_state.saved_strategies)
             send_telegram_alert(f"🚀 <b>NEW STRATEGY DEPLOYED</b>\n<b>{strat_title}</b> ({display_exp})\nSpot: ₹{live_spot:,.2f} | Max Profit: ₹{payoff_res['max_profit']:,.0f}")
-            st.success("✅ Strategy saved to GitHub & Live Tracker!")
+            st.success("✅ Strategy saved!")
             st.rerun()
 
     with col_chart:
-        # RENDER MATPLOTLIB IMAGE CHART
         st.pyplot(payoff_res["fig"], use_container_width=True)
 
 # ==============================================================================
-# WORKSPACE 2: SAVED LIVE TRACKER & P&L DESK (Info Left, Graph Right)
+# WORKSPACE 2: SAVED LIVE TRACKER & P&L DESK
 # ==============================================================================
 else:
-    st.markdown(f"### 🛡️ Live Trade Tracker & P&L Desk ({len(st.session_state.saved_strategies)} Active)")
-
-    if st.button("🔔 Send Test Alert", use_container_width=True):
-        ok = send_telegram_alert(f"🔔 <b>Quant Terminal Test Alert</b>\nNifty Spot: ₹{live_spot:,.2f}\nTime: {ist_time_str}")
-        if ok:
-            st.success("✅ Telegram Alert Sent!")
-        else:
-            st.warning("⚠️ Check TELEGRAM_BOT_TOKEN & TELEGRAM_CHAT_ID in Secrets.")
+    t_c1, t_c2 = st.columns([3, 1])
+    with t_c1:
+        st.markdown(f"#### 🛡️ Live Trade Tracker & P&L Desk ({len(st.session_state.saved_strategies)} Active)")
+    with t_c2:
+        if st.button("🔔 Send Test Alert", use_container_width=True):
+            ok = send_telegram_alert(f"🔔 <b>Quant Terminal Test Alert</b>\nNifty Spot: ₹{live_spot:,.2f}\nTime: {ist_time_str}")
+            if ok: st.success("✅ Alert Sent!")
 
     if not st.session_state.saved_strategies:
         st.info("Abhi koi active strategy nahi hai. '⚡ Quant Terminal' tab se koi strategy deploy karein.")
@@ -358,24 +338,15 @@ else:
             spot_drift = live_spot - ent_spot
             total_pnl_pts = 0.0
 
-            # 1. Prepare Data for Tracker Card
             legs_html = ""
             strat_display_legs = [] 
-            
             for l_i, lg in enumerate(strat.get("legs", []), 1):
                 tok = lg.get("token", "")
                 ent_price = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
-                
-                strat_display_legs.append({
-                    "action": lg["action"],
-                    "type": lg["type"],
-                    "strike": lg["strike"],
-                    "premium": ent_price
-                })
+                strat_display_legs.append({"action": lg["action"], "type": lg["type"], "strike": lg["strike"], "premium": ent_price})
                 
                 cur_p = tracker_ltps.get(tok, ent_price)
-                if cur_p <= 0:
-                    cur_p = ent_price
+                if cur_p <= 0: cur_p = ent_price
 
                 diff_p = (cur_p - ent_price) if lg["action"] == "BUY" else (ent_price - cur_p)
                 total_pnl_pts += diff_p
@@ -385,9 +356,9 @@ else:
                 sign_p = "+" if leg_pnl_rs >= 0 else ""
 
                 legs_html += (
-                    f'<div style="background-color:#111827; border-left:4px solid {act_col}; border-top:1px solid #1f2937; border-right:1px solid #1f2937; border-bottom:1px solid #1f2937; border-radius:6px; padding:8px 10px; margin-bottom:6px;">'
-                    f'<div style="font-size:0.8rem; font-weight:700; color:#f8fafc;">Leg {l_i}: <span style="color:{act_col};">{lg["action"]}</span> NIFTY {strat.get("expiry", "")} {lg["strike"]} {lg["type"]}</div>'
-                    f'<div style="font-size:0.78rem; color:#94a3b8; margin-top:2px;">Entry: ₹{ent_price:.2f} → Live: <b style="color:#f8fafc;">₹{cur_p:.2f}</b> | <span style="color:{pnl_col}; font-weight:800;">{sign_p}₹{leg_pnl_rs:,.0f}</span></div>'
+                    f'<div style="background-color:#111827; border-left:4px solid {act_col}; border:1px solid #1f2937; border-radius:4px; padding:4px 8px; margin-bottom:4px;">'
+                    f'<div style="font-size:0.75rem; font-weight:700; color:#f8fafc;">Leg {l_i}: <span style="color:{act_col};">{lg["action"]}</span> NIFTY {strat.get("expiry", "")} {lg["strike"]} {lg["type"]}</div>'
+                    f'<div style="font-size:0.75rem; color:#94a3b8; margin-top:1px;">Entry: ₹{ent_price:.2f} → Live: <b style="color:#f8fafc;">₹{cur_p:.2f}</b> | <span style="color:{pnl_col}; font-weight:800;">{sign_p}₹{leg_pnl_rs:,.0f}</span></div>'
                     f'</div>'
                 )
 
@@ -395,39 +366,33 @@ else:
             net_col = "#10b981" if net_pnl_rs >= 0 else "#ef4444"
             net_sign = "+" if net_pnl_rs >= 0 else ""
 
-            if abs(spot_drift) >= 100:
-                status_txt = f"🟡 STATUS: MONITOR CLOSELY — Spot Drift: {spot_drift:+.1f} pts."
-                status_bg = "rgba(234, 179, 8, 0.15)"
-                status_col = "#f59e0b"
-            else:
-                status_txt = f"🟢 STATUS: SAFE ZONE — Spot Drift: {spot_drift:+.1f} pts."
-                status_bg = "rgba(16, 185, 129, 0.15)"
-                status_col = "#10b981"
+            status_txt = f"🟡 MONITOR CLOSELY — Drift: {spot_drift:+.1f} pts." if abs(spot_drift) >= 100 else f"🟢 SAFE ZONE — Drift: {spot_drift:+.1f} pts."
+            status_bg = "rgba(234, 179, 8, 0.15)" if abs(spot_drift) >= 100 else "rgba(16, 185, 129, 0.15)"
+            status_col = "#f59e0b" if abs(spot_drift) >= 100 else "#10b981"
 
             max_p_clean = round(float(strat.get("max_profit", 0)))
             max_l_clean = round(float(strat.get("max_loss", 0)))
 
             card_html = (
-                f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:10px; padding:12px;">'
-                f'<div style="font-size:0.95rem; font-weight:800; color:#f8fafc;">#{idx+1} • {strat.get("name", "Strategy")} <span style="color:#38bdf8;">({strat.get("expiry", "")})</span></div>'
-                f'<div style="font-size:0.72rem; color:#94a3b8; margin-bottom:6px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | Live Spot: ₹{live_spot:,.2f} ({spot_drift:+.1f})</div>'
-                f'<div style="display:flex; gap:14px; flex-wrap:wrap; font-size:0.78rem; font-weight:700; margin-bottom:6px;">'
+                f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px;">'
+                f'<div style="font-size:0.9rem; font-weight:800; color:#f8fafc;">#{idx+1} • {strat.get("name", "Strategy")} <span style="color:#38bdf8;">({strat.get("expiry", "")})</span></div>'
+                f'<div style="font-size:0.7rem; color:#94a3b8; margin-bottom:4px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | Live: ₹{live_spot:,.2f}</div>'
+                f'<div style="display:flex; gap:12px; flex-wrap:wrap; font-size:0.75rem; font-weight:700; margin-bottom:4px;">'
                 f'<span style="color:#10b981;">Max Profit: ₹{max_p_clean:,}</span>'
                 f'<span style="color:#ef4444;">Max Risk: ₹{max_l_clean:,}</span>'
-                f'<span style="color:#f8fafc;">Lot Qty: {lot_q}</span>'
+                f'<span style="color:#f8fafc;">Lot: {lot_q}</span>'
                 f'</div>'
-                f'<div style="font-size:1.05rem; font-weight:800; color:#f8fafc; margin-bottom:10px;">Running P&L: <span style="color:{net_col};">{net_sign}₹{net_pnl_rs:,.0f} ({total_pnl_pts:+.2f} pts)</span></div>'
+                f'<div style="font-size:1rem; font-weight:800; color:#f8fafc; margin-bottom:8px;">Running P&L: <span style="color:{net_col};">{net_sign}₹{net_pnl_rs:,.0f} ({total_pnl_pts:+.2f} pts)</span></div>'
                 f'{legs_html}'
-                f'<div style="background:{status_bg}; color:{status_col}; padding:8px 10px; border-radius:6px; font-size:0.78rem; font-weight:800; margin-top:8px;">{status_txt}</div>'
+                f'<div style="background:{status_bg}; color:{status_col}; padding:4px 8px; border-radius:4px; font-size:0.75rem; font-weight:800; margin-top:6px;">{status_txt}</div>'
                 f'</div>'
             )
 
-            # 2. Render Side-by-Side Layout (Info Left, Graph Right)
             c_info, c_graph = st.columns([1, 1.3], gap="medium")
             
             with c_info:
                 st.markdown(card_html, unsafe_allow_html=True)
-                with st.expander(f"✏️ Edit Strikes & Entry Prices (#{idx+1})"):
+                with st.expander(f"✏️ Edit Strikes/Entry (#{idx+1})"):
                     updated = False
                     for l_i, lg in enumerate(strat.get("legs", [])):
                         cur_ent_val = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
@@ -453,4 +418,4 @@ else:
                 saved_payoff = compute_payoff_and_chart(strat_display_legs, ent_spot, live_vix, 1, lot_q, strat.get("expiry", ""))
                 st.pyplot(saved_payoff["fig"], use_container_width=True)
             
-            st.markdown("<hr style='border-color: #1f2937; margin: 25px 0;'>", unsafe_allow_html=True)
+            st.markdown("<hr style='border-color: #1f2937; margin: 15px 0;'>", unsafe_allow_html=True)
