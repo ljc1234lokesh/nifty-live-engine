@@ -1,12 +1,30 @@
-/* --- HIDE STREAMLIT TOP HEADER & REDUCE TOP PADDING --- */
+/* --- HIDE STREAMLIT TOP HEADER --- */
 [data-testid="stHeader"], header, [data-testid="stToolbar"], [data-testid="stDecoration"] {
     display: none !important;
     visibility: hidden !important;
     height: 0px !important;
 }
 
+/* --- BULLETPROOF FIXED TOP COMMAND BAR --- */
+[data-testid="stAppViewBlockContainer"] > div:first-child {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 99999 !important;
+    background-color: #0b0f19 !important;
+    padding: 15px 30px 10px 30px !important;
+    border-bottom: 1px solid #1f2937 !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Push the rest of the dashboard down so it doesn't hide under the fixed header */
+[data-testid="stAppViewBlockContainer"] > div:nth-child(n+2) {
+    margin-top: 200px !important;
+}
+
 .block-container, [data-testid="stAppViewBlockContainer"] {
-    padding-top: 0.5rem !important;
+    padding-top: 0rem !important;
     padding-bottom: 1.5rem !important;
 }
 
@@ -16,23 +34,14 @@
 }
 
 /* --- Ticker LTP Direct CSS Classes --- */
-.ticker-ltp-green {
-    color: #34d399 !important;
-    font-weight: 700 !important;
-}
-.ticker-ltp-red {
-    color: #f87171 !important;
-    font-weight: 700 !important;
-}
-.ticker-change {
-    color: #94a3b8 !important;
-    font-weight: normal !important;
-    font-size: 0.8rem !important;
-}
+.ticker-ltp-green { color: #34d399 !important; font-weight: 700 !important; }
+.ticker-ltp-red { color: #f87171 !important; font-weight: 700 !important; }
+.ticker-change { color: #94a3b8 !important; font-weight: normal !important; font-size: 0.8rem !important; }
 
 div[data-testid="stWidgetLabel"] p, div[role="radiogroup"] label p {
     color: #f8fafc !important;
 }
+
 /* --- BUTTON VISIBILITY & HOVER FIX --- */
 div.stButton > button {
     background-color: #1e293b !important;
@@ -40,20 +49,16 @@ div.stButton > button {
     border: 1px solid #334155 !important;
     transition: all 0.2s ease-in-out !important;
 }
-
 div.stButton > button:hover {
     background-color: #0f172a !important;
     border-color: #38bdf8 !important;
     color: #38bdf8 !important;
 }
-
-/* Primary Button (Deploy & Save) Fix */
 div.stButton > button[kind="primary"] {
     background-color: #ef4444 !important;
     color: #ffffff !important;
     border: 1px solid #ef4444 !important;
 }
-
 div.stButton > button[kind="primary"]:hover {
     background-color: #dc2626 !important;
     border-color: #dc2626 !important;
