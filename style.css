@@ -1,3 +1,15 @@
+/* --- HIDE STREAMLIT TOP HEADER & REDUCE TOP PADDING --- */
+[data-testid="stHeader"], header, [data-testid="stToolbar"], [data-testid="stDecoration"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0px !important;
+}
+
+.block-container, [data-testid="stAppViewBlockContainer"] {
+    padding-top: 0.4rem !important;
+    padding-bottom: 1.5rem !important;
+}
+
 /* --- BASE THEME VARIABLES (NIGHT MODE DEFAULT) --- */
 :root {
     --bg-app: #0b0f19;
@@ -5,12 +17,22 @@
     --border-card: #1f2937;
     --text-primary: #f8fafc;
     --text-muted: #94a3b8;
-    --badge-bg: #1e293b;
 }
 
-.stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+.stApp, [data-testid="stAppViewContainer"] {
     background-color: var(--bg-app) !important;
     color: var(--text-primary) !important;
+}
+
+/* --- FREEZE / STICKY TOP COMMAND HEADER CONTAINER --- */
+div[data-testid="stVerticalBlock"]:has(> div.element-container .sticky-marker) {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 999 !important;
+    background-color: var(--bg-app) !important;
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+    border-bottom: 1px solid var(--border-card) !important;
 }
 
 /* Cards & Containers */
@@ -35,15 +57,4 @@
 /* Streamlit Native Widgets Text */
 div[data-testid="stWidgetLabel"] p, div[role="radiogroup"] label p {
     color: var(--text-primary) !important;
-}
-/* --- HIDE STREAMLIT TOP HEADER & REDUCE TOP PADDING --- */
-[data-testid="stHeader"], header, [data-testid="stToolbar"], [data-testid="stDecoration"] {
-    display: none !important;
-    visibility: hidden !important;
-    height: 0px !important;
-}
-
-.block-container, [data-testid="stAppViewBlockContainer"] {
-    padding-top: 0.6rem !important;
-    padding-bottom: 1rem !important;
 }
