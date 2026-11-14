@@ -24,11 +24,11 @@
     color: var(--text-primary) !important;
 }
 
-/* --- FREEZE / STICKY TOP COMMAND HEADER CONTAINER --- */
-div[data-testid="stVerticalBlock"]:has(> div.element-container .sticky-marker) {
+/* --- BULLETPROOF STICKY TOP COMMAND CONTAINER --- */
+.frozen-top-header {
     position: sticky !important;
     top: 0 !important;
-    z-index: 999 !important;
+    z-index: 9999 !important;
     background-color: var(--bg-app) !important;
     padding-top: 6px !important;
     padding-bottom: 6px !important;
