@@ -217,6 +217,7 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
         spine.set_edgecolor("#1f2937")
 
     fig.tight_layout(pad=0.5)
+net_delta, net_theta = compute_strategy_greeks(display_legs, live_spot, live_vix, dte_days, lot_size)
 
     return {
         "net_credit": net_credit,
@@ -224,6 +225,8 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
         "max_loss": max_loss_lot,
         "pop": pop_percent,
         "rr": rr_ratio,
+        "net_delta": net_delta,
+        "net_theta": net_theta,
         "fig": fig
     }
 
