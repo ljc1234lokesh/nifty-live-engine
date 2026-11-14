@@ -220,79 +220,81 @@ if "Quant Terminal" in nav_mode:
             "symbol": kite_sym
         })
 
-    # --- COMPUTE PAYOFF & INTERACTIVE PLOTLY GRAPH ---
+    # --- COMPUTE PAYOFF (MATPLOTLIB) ---
     payoff_res = compute_payoff_and_chart(
         display_legs, live_spot, live_vix, dte_days, lot_size, display_exp
     )
 
-    st.markdown(
-        f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:12px; margin-bottom:8px;">'
-        f'<div style="font-size:1.05rem; font-weight:800; color:#38bdf8;">🎯 {strat_title}</div>'
-        f'<div style="font-size:0.78rem; color:#94a3b8; margin-top:2px;">{strat_desc}</div>'
-        f'<div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:0.82rem; font-weight:700;">'
-        f'<span style="color:#10b981;">Max Profit: ₹{payoff_res["max_profit"]:,.0f}</span>'
-        f'<span style="color:#ef4444;">Max Risk: ₹{payoff_res["max_loss"]:,.0f}</span>'
-        f'<span style="color:#a855f7;">Win Prob (POP): {payoff_res["pop"]:.1f}%</span>'
-        f'<span style="color:#f59e0b;">Lot Size: {lot_size}</span>'
-        f'</div></div>',
-        unsafe_allow_html=True
-    )
+    # --- RESPONSIVE SIDE-BY-SIDE LAYOUT (PC = Side-by-Side, Mobile = Stacked) ---
+    col_chart, col_legs = st.columns([1.3, 1], gap="medium")
+    
+    with col_chart:
+        # RENDER MATPLOTLIB IMAGE CHART
+        st.pyplot(payoff_res["fig"], use_container_width=True)
 
-    # --- RENDER INTERACTIVE TOUCH/HOVER PLOTLY CHART ---
-    st.plotly_chart(
-        payoff_res["fig"],
-        use_container_width=True,
-        config={"displayModeBar": False, "scrollZoom": True}
-    )
-
-    # --- EXECUTION LEGS TABLE ---
-    st.markdown("#### 📋 Strategy Execution Legs")
-    for i, lg in enumerate(display_legs, 1):
-        act_col = "#10b981" if lg["action"] == "BUY" else "#ef4444"
+    with col_legs:
+        # Title Card
         st.markdown(
-            f'<div style="background-color:#111827; border-left:4px solid {act_col}; border-top:1px solid #1f2937; border-right:1px solid #1f2937; border-bottom:1px solid #1f2937; border-radius:6px; padding:8px 12px; margin-bottom:6px;">'
-            f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">'
-            f'<div>'
-            f'<span style="font-weight:800; color:{act_col};">Leg {i}: {lg["action"]}</span> '
-            f'<span style="font-weight:700; color:#f8fafc; margin-left:6px;">NIFTY {display_exp} {lg["strike"]} {lg["type"]}</span> '
-            f'<span style="font-size:0.72rem; color:#94a3b8; margin-left:8px;">({lg["note"]})</span>'
-            f'</div>'
-            f'<div style="font-weight:800; font-size:0.9rem; color:#f8fafc;">LTP: ₹{lg["premium"]:.2f}</div>'
+            f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:12px; margin-bottom:8px;">'
+            f'<div style="font-size:1.05rem; font-weight:800; color:#38bdf8;">🎯 {strat_title}</div>'
+            f'<div style="font-size:0.78rem; color:#94a3b8; margin-top:2px;">{strat_desc}</div>'
+            f'<div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:0.82rem; font-weight:700;">'
+            f'<span style="color:#10b981;">Max Profit: ₹{payoff_res["max_profit"]:,.0f}</span>'
+            f'<span style="color:#ef4444;">Max Risk: ₹{payoff_res["max_loss"]:,.0f}</span>'
+            f'<span style="color:#a855f7;">Win Prob (POP): {payoff_res["pop"]:.1f}%</span>'
+            f'<span style="color:#f59e0b;">Lot: {lot_size}</span>'
             f'</div></div>',
             unsafe_allow_html=True
         )
 
-    # --- SAVE TO LIVE TRACKER BUTTON ---
-    if st.button("🚀 Deploy & Save to Live P&L Tracker", use_container_width=True, type="primary"):
-        new_entry = {
-            "id": int(datetime.datetime.now().timestamp()),
-            "name": strat_title,
-            "expiry": display_exp,
-            "saved_time": ist_time_str,
-            "entry_spot": live_spot,
-            "lot_size": lot_size,
-            "max_profit": round(payoff_res["max_profit"]),
-            "max_loss": round(payoff_res["max_loss"]),
-            "legs": [
-                {
-                    "action": l["action"],
-                    "type": l["type"],
-                    "strike": l["strike"],
-                    "entry_price": l["premium"],
-                    "token": l["token"],
-                    "symbol": l["symbol"]
-                }
-                for l in display_legs
-            ]
-        }
-        st.session_state.saved_strategies.append(new_entry)
-        save_strategies_to_disk(st.session_state.saved_strategies)
-        send_telegram_alert(f"🚀 <b>NEW STRATEGY DEPLOYED</b>\n<b>{strat_title}</b> ({display_exp})\nSpot: ₹{live_spot:,.2f} | Max Profit: ₹{payoff_res['max_profit']:,.0f}")
-        st.success("✅ Strategy saved to GitHub & Live Tracker!")
-        st.rerun()
+        # Execution Legs Table
+        st.markdown("#### 📋 Strategy Execution Legs")
+        for i, lg in enumerate(display_legs, 1):
+            act_col = "#10b981" if lg["action"] == "BUY" else "#ef4444"
+            st.markdown(
+                f'<div style="background-color:#111827; border-left:4px solid {act_col}; border-top:1px solid #1f2937; border-right:1px solid #1f2937; border-bottom:1px solid #1f2937; border-radius:6px; padding:8px 12px; margin-bottom:6px;">'
+                f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">'
+                f'<div>'
+                f'<span style="font-weight:800; color:{act_col};">Leg {i}: {lg["action"]}</span> '
+                f'<span style="font-weight:700; color:#f8fafc; margin-left:6px;">NIFTY {display_exp} {lg["strike"]} {lg["type"]}</span> '
+                f'<span style="font-size:0.72rem; color:#94a3b8; margin-left:8px;">({lg["note"]})</span>'
+                f'</div>'
+                f'<div style="font-weight:800; font-size:0.9rem; color:#f8fafc;">LTP: ₹{lg["premium"]:.2f}</div>'
+                f'</div></div>',
+                unsafe_allow_html=True
+            )
+
+        # Save Button
+        if st.button("🚀 Deploy & Save to Live P&L Tracker", use_container_width=True, type="primary"):
+            new_entry = {
+                "id": int(datetime.datetime.now().timestamp()),
+                "name": strat_title,
+                "expiry": display_exp,
+                "saved_time": ist_time_str,
+                "entry_spot": live_spot,
+                "lot_size": lot_size,
+                "max_profit": round(payoff_res["max_profit"]),
+                "max_loss": round(payoff_res["max_loss"]),
+                "legs": [
+                    {
+                        "action": l["action"],
+                        "type": l["type"],
+                        "strike": l["strike"],
+                        "entry_price": l["premium"],
+                        "token": l["token"],
+                        "symbol": l["symbol"]
+                    }
+                    for l in display_legs
+                ]
+            }
+            st.session_state.saved_strategies.append(new_entry)
+            save_strategies_to_disk(st.session_state.saved_strategies)
+            send_telegram_alert(f"🚀 <b>NEW STRATEGY DEPLOYED</b>\n<b>{strat_title}</b> ({display_exp})\nSpot: ₹{live_spot:,.2f} | Max Profit: ₹{payoff_res['max_profit']:,.0f}")
+            st.success("✅ Strategy saved to GitHub & Live Tracker!")
+            st.rerun()
 
 # ==============================================================================
-# WORKSPACE 2: SAVED LIVE TRACKER & P&L DESK
+# WORKSPACE 2: SAVED LIVE TRACKER & P&L DESK (WITH SIDE-BY-SIDE GRAPH)
 # ==============================================================================
 else:
     st.markdown(f"### 🛡️ Live Trade Tracker & P&L Desk ({len(st.session_state.saved_strategies)} Active)")
@@ -316,10 +318,21 @@ else:
             spot_drift = live_spot - ent_spot
             total_pnl_pts = 0.0
 
+            # 1. Prepare Data for Tracker Card
             legs_html = ""
+            strat_display_legs = [] # Reconstructing for Payoff Chart
+            
             for l_i, lg in enumerate(strat.get("legs", []), 1):
                 tok = lg.get("token", "")
                 ent_price = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
+                
+                # Append to display_legs for the Matplotlib chart
+                strat_display_legs.append({
+                    "action": lg["action"],
+                    "type": lg["type"],
+                    "strike": lg["strike"],
+                    "premium": ent_price
+                })
                 
                 cur_p = tracker_ltps.get(tok, ent_price)
                 if cur_p <= 0:
@@ -356,7 +369,7 @@ else:
             max_l_clean = round(float(strat.get("max_loss", 0)))
 
             card_html = (
-                f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:10px; padding:12px; margin-top:10px;">'
+                f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:10px; padding:12px;">'
                 f'<div style="font-size:0.95rem; font-weight:800; color:#f8fafc;">#{idx+1} • {strat.get("name", "Strategy")} <span style="color:#38bdf8;">({strat.get("expiry", "")})</span></div>'
                 f'<div style="font-size:0.72rem; color:#94a3b8; margin-bottom:6px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | Live Spot: ₹{live_spot:,.2f} ({spot_drift:+.1f})</div>'
                 f'<div style="display:flex; gap:14px; flex-wrap:wrap; font-size:0.78rem; font-weight:700; margin-bottom:6px;">'
@@ -369,26 +382,37 @@ else:
                 f'<div style="background:{status_bg}; color:{status_col}; padding:8px 10px; border-radius:6px; font-size:0.78rem; font-weight:800; margin-top:8px;">{status_txt}</div>'
                 f'</div>'
             )
-            st.markdown(card_html, unsafe_allow_html=True)
 
-            with st.expander(f"✏️ Edit Strikes & Entry Prices (#{idx+1})"):
-                updated = False
-                for l_i, lg in enumerate(strat.get("legs", [])):
-                    cur_ent_val = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        new_st = st.number_input(f"Leg {l_i+1} Strike", value=int(lg["strike"]), step=50, key=f"st_{strat.get('id', idx)}_{l_i}")
-                    with c2:
-                        new_pr = st.number_input(f"Leg {l_i+1} Entry ₹", value=cur_ent_val, step=0.5, key=f"pr_{strat.get('id', idx)}_{l_i}")
-                    if new_st != lg["strike"] or new_pr != cur_ent_val:
-                        lg["strike"] = new_st
-                        lg["entry_price"] = new_pr
-                        updated = True
-                if updated:
+            # 2. Render Side-by-Side Layout
+            c_graph, c_info = st.columns([1.3, 1], gap="medium")
+            
+            with c_graph:
+                # Compute Payoff strictly based on Entry Data for the chart
+                saved_payoff = compute_payoff_and_chart(strat_display_legs, ent_spot, live_vix, 1, lot_q, strat.get("expiry", ""))
+                st.pyplot(saved_payoff["fig"], use_container_width=True)
+            
+            with c_info:
+                st.markdown(card_html, unsafe_allow_html=True)
+                with st.expander(f"✏️ Edit Strikes & Entry Prices (#{idx+1})"):
+                    updated = False
+                    for l_i, lg in enumerate(strat.get("legs", [])):
+                        cur_ent_val = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            new_st = st.number_input(f"Leg {l_i+1} Strike", value=int(lg["strike"]), step=50, key=f"st_{strat.get('id', idx)}_{l_i}")
+                        with c2:
+                            new_pr = st.number_input(f"Leg {l_i+1} Entry ₹", value=cur_ent_val, step=0.5, key=f"pr_{strat.get('id', idx)}_{l_i}")
+                        if new_st != lg["strike"] or new_pr != cur_ent_val:
+                            lg["strike"] = new_st
+                            lg["entry_price"] = new_pr
+                            updated = True
+                    if updated:
+                        save_strategies_to_disk(st.session_state.saved_strategies)
+                        st.rerun()
+
+                if st.button(f"🚪 Exit Trade (#{idx+1})", key=f"exit_{strat.get('id', idx)}", use_container_width=True):
+                    st.session_state.saved_strategies.pop(idx)
                     save_strategies_to_disk(st.session_state.saved_strategies)
                     st.rerun()
-
-            if st.button(f"🚪 Exit Trade (#{idx+1})", key=f"exit_{strat.get('id', idx)}", use_container_width=True):
-                st.session_state.saved_strategies.pop(idx)
-                save_strategies_to_disk(st.session_state.saved_strategies)
-                st.rerun()
+            
+            st.markdown("<hr style='border-color: #1f2937; margin: 25px 0;'>", unsafe_allow_html=True)
