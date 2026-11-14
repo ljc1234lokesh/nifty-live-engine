@@ -12,32 +12,32 @@
       {
         "action": "BUY",
         "type": "PE",
-        "strike": 25050,
-        "entry_price": 51.56,
+        "strike": 24900,
+        "entry_price": 52.5,
         "token": "45389",
         "symbol": "NIFTY26N1725050PE"
       },
       {
         "action": "SELL",
         "type": "PE",
-        "strike": 25250,
-        "entry_price": 158.48,
+        "strike": 25100,
+        "entry_price": 123.4,
         "token": "45401",
         "symbol": "NIFTY26N1725250PE"
       },
       {
         "action": "SELL",
         "type": "CE",
-        "strike": 25250,
-        "entry_price": 158.48,
+        "strike": 25100,
+        "entry_price": 150.75,
         "token": "45396",
         "symbol": "NIFTY26N1725250CE"
       },
       {
         "action": "BUY",
         "type": "CE",
-        "strike": 25450,
-        "entry_price": 47.56,
+        "strike": 25300,
+        "entry_price": 69.55,
         "token": "45408",
         "symbol": "NIFTY26N1725450CE"
       }
