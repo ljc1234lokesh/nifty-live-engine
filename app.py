@@ -59,10 +59,12 @@ api_status_badge = "🟢 LIVE NFO API" if smart_api else "🟡 SIMULATED MODE"
 api_badge_color = "#10b981" if smart_api else "#f59e0b"
 
 # ==============================================================================
-# FIXED TOP COMMAND HEADER (LOCKED TO VIEWPORT TOP VIA CSS)
+# FIXED TOP COMMAND HEADER (LOCKED TO VIEWPORT TOP)
 # ==============================================================================
 with st.container():
-    # --- TOP HEADER BAR ---
+    st.markdown('<div class="sticky-header-target"></div>', unsafe_allow_html=True)
+    
+    # --- TOP HEADER TITLE ---
     st.markdown(
         f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px 14px; margin-bottom:8px;">'
         f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">'
@@ -77,39 +79,60 @@ with st.container():
         unsafe_allow_html=True
     )
 
-    # --- TOP MARKET TICKER BAR (Now with 4 Columns: NIFTY, BANKNIFTY, SENSEX, INDIA VIX) ---
-    t1, t2, t3, t4 = st.columns(4)
-    for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty"), (t3, "SENSEX", "sensex")]:
-        with col:
-            d = market_data[key]
-            ltp = d["ltp"]
-            close = d["close"] if d["close"] > 0 else ltp
-            diff = ltp - close
-            pct = (diff / close) * 100 if close > 0 else 0.0
-            css_class = "ticker-ltp-green" if diff >= 0 else "ticker-ltp-red"
-            sign_str = "+" if diff >= 0 else ""
-
-            st.markdown(
-                f'<div style="background-color: #111827; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 8px; text-align: center; margin-bottom: 4px;">'
-                f'<div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">'
-                f'{name}: <span class="{css_class}">₹{ltp:,.2f}</span> '
-                f'<span class="ticker-change">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>'
-                f'</div>'
-                f'<div style="font-size: 0.65rem; color: #94a3b8; margin-top: 2px;">O: {d["open"]:,.1f} | H: {d["high"]:,.1f} | L: {d["low"]:,.1f} | C: {close:,.1f}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-            
-    # Add INDIA VIX to the 4th column
-    with t4:
-        st.markdown(
-            f'<div style="background-color: #111827; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 8px; text-align: center; margin-bottom: 4px; height: 44px; display: flex; flex-direction: column; justify-content: center;">'
-            f'<div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">'
-            f'INDIA VIX: <span style="color: #38bdf8; font-weight: 800;">{live_vix:.2f}</span>'
-            f'</div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
+    # --- TOP MARKET TICKER BAR (Custom Responsive 2x2 Grid on Mobile) ---
+    ticker_html = f"""
+    <style>
+    .ticker-grid {{
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-bottom: 8px;
+    }}
+    @media (max-width: 768px) {{
+        .ticker-grid {{
+            grid-template-columns: repeat(2, 1fr);
+        }}
+    }}
+    .ticker-box {{
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 6px;
+        padding: 6px 8px;
+        text-align: center;
+    }}
+    </style>
+    <div class="ticker-grid">
+    """
+    for name, key in [("NIFTY 50", "nifty"), ("BANKNIFTY", "banknifty"), ("SENSEX", "sensex")]:
+        d = market_data[key]
+        ltp = d["ltp"]
+        close = d["close"] if d["close"] > 0 else ltp
+        diff = ltp - close
+        pct = (diff / close) * 100 if close > 0 else 0.0
+        css_color = "#34d399" if diff >= 0 else "#f87171"
+        sign_str = "+" if diff >= 0 else ""
+        
+        ticker_html += f"""
+        <div class="ticker-box">
+            <div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">
+                {name}: <span style="color: {css_color}; font-weight: 700;">₹{ltp:,.2f}</span>
+                <span style="color: #94a3b8; font-size: 0.8rem; font-weight: normal;">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>
+            </div>
+            <div style="font-size: 0.65rem; color: #94a3b8; margin-top: 2px;">
+                O: {d['open']:,.1f} | H: {d['high']:,.1f} | L: {d['low']:,.1f} | C: {close:,.1f}
+            </div>
+        </div>
+        """
+    # INDIA VIX 
+    ticker_html += f"""
+        <div class="ticker-box" style="display: flex; flex-direction: column; justify-content: center;">
+            <div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">
+                INDIA VIX: <span style="color: #38bdf8; font-weight: 800;">{live_vix:.2f}</span>
+            </div>
+        </div>
+    </div>
+    """
+    st.markdown(ticker_html, unsafe_allow_html=True)
 
     # --- COMMAND NAVIGATION & 7s SYNC TOGGLE BAR ---
     nav_col1, nav_col2 = st.columns([3, 1])
@@ -124,11 +147,10 @@ with st.container():
     with nav_col2:
         auto_refresh_on = st.toggle("Sync (7s)", value=True, key="top_sync_toggle")
 
-    st.markdown("<hr style='margin: 4px 0 10px 0; border-color: #1f2937;'>", unsafe_allow_html=True)
-
 if auto_refresh_on:
     st_autorefresh(interval=7 * 1000, key="terminal_fixed_sync_v10")
 
+st.markdown("<hr style='margin: 4px 0 10px 0; border-color: #1f2937;'>", unsafe_allow_html=True)
 
 # ==============================================================================
 # WORKSPACE 1: QUANT TERMINAL (STRATEGY BUILDER & ANALYTICS)
@@ -171,25 +193,53 @@ if "Quant Terminal" in nav_mode:
     put_wall = oi_data["put_wall"]
 
     pcr_sentiment = "Bullish Support" if live_pcr >= 1.15 else ("Bearish Pressure" if live_pcr <= 0.78 else "Neutral / Range")
+    pcr_color = "#10b981" if live_pcr >= 1.0 else "#f59e0b"
 
-    # --- 4 INSTITUTIONAL METRIC CARDS (VIX removed from here) ---
-    m1, m2, m3, m4 = st.columns(4)
-    metrics_info = [
-        (m1, "LIVE PCR (🟢)", f"{live_pcr:.2f}", pcr_sentiment, "#10b981" if live_pcr >= 1.0 else "#f59e0b"),
-        (m2, "MAX PAIN", f"₹{live_max_pain}", "Expiry Magnet", "#a855f7"),
-        (m3, "PUT SUPPORT", f"₹{put_wall}", f"OI: {oi_data['put_wall_oi']:,}", "#10b981"),
-        (m4, "CALL RESISTANCE", f"₹{call_wall}", f"OI: {oi_data['call_wall_oi']:,}", "#ef4444"),
-    ]
-    for col, title, val, sub, accent in metrics_info:
-        with col:
-            st.markdown(
-                f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px 12px; margin-bottom:6px;">'
-                f'<div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">{title}</div>'
-                f'<div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">{val}</div>'
-                f'<div style="font-size:0.72rem; color:{accent}; font-weight:600;">{sub}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
+    # --- 4 INSTITUTIONAL METRIC CARDS (Custom Responsive 2x2 Grid on Mobile) ---
+    metrics_html = f"""
+    <style>
+    .metrics-grid {{
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 8px;
+    }}
+    @media (max-width: 768px) {{
+        .metrics-grid {{
+            grid-template-columns: repeat(2, 1fr);
+        }}
+    }}
+    .metric-box {{
+        background-color: #111827;
+        border: 1px solid #1f2937;
+        border-radius: 8px;
+        padding: 10px 12px;
+    }}
+    </style>
+    <div class="metrics-grid">
+        <div class="metric-box">
+            <div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">LIVE PCR (🟢)</div>
+            <div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">{live_pcr:.2f}</div>
+            <div style="font-size:0.72rem; color:{pcr_color}; font-weight:600;">{pcr_sentiment}</div>
+        </div>
+        <div class="metric-box">
+            <div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">MAX PAIN</div>
+            <div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">₹{live_max_pain}</div>
+            <div style="font-size:0.72rem; color:#a855f7; font-weight:600;">Expiry Magnet</div>
+        </div>
+        <div class="metric-box">
+            <div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">PUT SUPPORT</div>
+            <div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">₹{put_wall}</div>
+            <div style="font-size:0.72rem; color:#10b981; font-weight:600;">OI: {oi_data['put_wall_oi']:,}</div>
+        </div>
+        <div class="metric-box">
+            <div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">CALL RESISTANCE</div>
+            <div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">₹{call_wall}</div>
+            <div style="font-size:0.72rem; color:#ef4444; font-weight:600;">OI: {oi_data['call_wall_oi']:,}</div>
+        </div>
+    </div>
+    """
+    st.markdown(metrics_html, unsafe_allow_html=True)
 
     # --- MARKET TIMING BANNER ---
     st.markdown(
@@ -335,13 +385,12 @@ else:
 
             # 1. Prepare Data for Tracker Card
             legs_html = ""
-            strat_display_legs = [] # Reconstructing for Payoff Chart
+            strat_display_legs = [] 
             
             for l_i, lg in enumerate(strat.get("legs", []), 1):
                 tok = lg.get("token", "")
                 ent_price = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
                 
-                # Append to display_legs for the Matplotlib chart
                 strat_display_legs.append({
                     "action": lg["action"],
                     "type": lg["type"],
@@ -426,7 +475,6 @@ else:
                     st.rerun()
             
             with c_graph:
-                # Compute Payoff strictly based on Entry Data for the chart
                 saved_payoff = compute_payoff_and_chart(strat_display_legs, ent_spot, live_vix, 1, lot_q, strat.get("expiry", ""))
                 st.pyplot(saved_payoff["fig"], use_container_width=True)
             
