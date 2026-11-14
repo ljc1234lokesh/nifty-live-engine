@@ -344,7 +344,6 @@ else:
             legs_html = ""
             for l_i, lg in enumerate(strat.get("legs", []), 1):
                 tok = lg.get("token", "")
-                # Backward compatible key lookup for old & new saved strategies
                 ent_price = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
                 
                 cur_p = tracker_ltps.get(tok, ent_price)
@@ -358,16 +357,13 @@ else:
                 act_col = "#10b981" if lg["action"] == "BUY" else "#ef4444"
                 sign_p = "+" if leg_pnl_rs >= 0 else ""
 
-                legs_html += f"""
-                <div class="leg-card" style="background-color:#111827; border-left:4px solid {act_col}; border:1px solid #1f2937; border-radius:6px; padding:8px 10px; margin-bottom:6px;">
-                    <div style="font-size:0.8rem; font-weight:700;">
-                        Leg {l_i}: <span style="color:{act_col};">{lg['action']}</span> NIFTY {strat.get('expiry', '')} {lg['strike']} {lg['type']}
-                    </div>
-                    <div style="font-size:0.78rem; margin-top:2px;">
-                        Entry: ₹{ent_price:.2f} → Live: <b>₹{cur_p:.2f}</b> | <span style="color:{pnl_col}; font-weight:800;">{sign_p}₹{leg_pnl_rs:,.0f}</span>
-                    </div>
-                </div>
-                """
+                # Single-line compact HTML so Streamlit never treats indentation as a code block
+                legs_html += (
+                    f'<div class="leg-card" style="background-color:#111827; border-left:4px solid {act_col}; border-top:1px solid #1f2937; border-right:1px solid #1f2937; border-bottom:1px solid #1f2937; border-radius:6px; padding:8px 10px; margin-bottom:6px;">'
+                    f'<div style="font-size:0.8rem; font-weight:700;">Leg {l_i}: <span style="color:{act_col};">{lg["action"]}</span> NIFTY {strat.get("expiry", "")} {lg["strike"]} {lg["type"]}</div>'
+                    f'<div style="font-size:0.78rem; margin-top:2px;">Entry: ₹{ent_price:.2f} → Live: <b>₹{cur_p:.2f}</b> | <span style="color:{pnl_col}; font-weight:800;">{sign_p}₹{leg_pnl_rs:,.0f}</span></div>'
+                    f'</div>'
+                )
 
             net_pnl_rs = total_pnl_pts * lot_q
             net_col = "#10b981" if net_pnl_rs >= 0 else "#ef4444"
@@ -382,24 +378,24 @@ else:
                 status_bg = "rgba(16, 185, 129, 0.15)"
                 status_col = "#10b981"
 
-            st.markdown(f"""
-            <div class="tracker-card" style="background-color:#111827; border:1px solid #1f2937; border-radius:10px; padding:12px; margin-top:10px;">
-                <div style="font-size:0.95rem; font-weight:800;">#{idx+1} • {strat.get('name', 'Strategy')} <span style="color:#38bdf8;">({strat.get('expiry', '')})</span></div>
-                <div style="font-size:0.72rem; color:#94a3b8; margin-bottom:6px;">Saved: {strat.get('saved_time', '')} | Entry Spot: ₹{ent_spot:,.2f} | Live Spot: ₹{live_spot:,.2f} ({spot_drift:+.1f})</div>
-                <div style="display:flex; gap:14px; flex-wrap:wrap; font-size:0.78rem; font-weight:700; margin-bottom:6px;">
-                    <span style="color:#10b981;">Max Profit: ₹{strat.get('max_profit', 0):,}</span>
-                    <span style="color:#ef4444;">Max Risk: ₹{strat.get('max_loss', 0):,}</span>
-                    <span>Lot Qty: {lot_q}</span>
-                </div>
-                <div style="font-size:1.05rem; font-weight:800; margin-bottom:10px;">
-                    Running P&L: <span style="color:{net_col};">{net_sign}₹{net_pnl_rs:,.0f} ({total_pnl_pts:+.2f} pts)</span>
-                </div>
-                {legs_html}
-                <div style="background:{status_bg}; color:{status_col}; padding:8px 10px; border-radius:6px; font-size:0.78rem; font-weight:800; margin-top:8px;">
-                    {status_txt}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            max_p_clean = round(float(strat.get("max_profit", 0)))
+            max_l_clean = round(float(strat.get("max_loss", 0)))
+
+            card_html = (
+                f'<div class="tracker-card" style="background-color:#111827; border:1px solid #1f2937; border-radius:10px; padding:12px; margin-top:10px;">'
+                f'<div style="font-size:0.95rem; font-weight:800;">#{idx+1} • {strat.get("name", "Strategy")} <span style="color:#38bdf8;">({strat.get("expiry", "")})</span></div>'
+                f'<div style="font-size:0.72rem; color:#94a3b8; margin-bottom:6px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | Live Spot: ₹{live_spot:,.2f} ({spot_drift:+.1f})</div>'
+                f'<div style="display:flex; gap:14px; flex-wrap:wrap; font-size:0.78rem; font-weight:700; margin-bottom:6px;">'
+                f'<span style="color:#10b981;">Max Profit: ₹{max_p_clean:,}</span>'
+                f'<span style="color:#ef4444;">Max Risk: ₹{max_l_clean:,}</span>'
+                f'<span>Lot Qty: {lot_q}</span>'
+                f'</div>'
+                f'<div style="font-size:1.05rem; font-weight:800; margin-bottom:10px;">Running P&L: <span style="color:{net_col};">{net_sign}₹{net_pnl_rs:,.0f} ({total_pnl_pts:+.2f} pts)</span></div>'
+                f'{legs_html}'
+                f'<div style="background:{status_bg}; color:{status_col}; padding:8px 10px; border-radius:6px; font-size:0.78rem; font-weight:800; margin-top:8px;">{status_txt}</div>'
+                f'</div>'
+            )
+            st.markdown(card_html, unsafe_allow_html=True)
 
             with st.expander(f"✏️ Edit Strikes & Entry Prices (#{idx+1})"):
                 updated = False
