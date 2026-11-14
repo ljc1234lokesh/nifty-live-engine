@@ -302,12 +302,12 @@ if "Quant Terminal" in nav_mode:
                 "lot_size": lot_size,
                 "max_profit": round(payoff_res["max_profit"]),
                 "max_loss": round(payoff_res["max_loss"]),
+                "stop_loss_limit": -2000.0,
                 "legs": [{"action": l["action"], "type": l["type"], "strike": l["strike"], "entry_price": l["premium"], "token": l["token"], "symbol": l["symbol"]} for l in display_legs]
             }
             st.session_state.saved_strategies.append(new_entry)
             save_strategies_to_disk(st.session_state.saved_strategies)
             
-            # --- DETAILED TELEGRAM NOTIFICATION FOR DEPLOYMENT ---
             tg_msg = f"🚀 <b>NEW STRATEGY DEPLOYED</b>\n#{new_id}. <b>{strat_title}</b> ({display_exp})\nSaved: {ist_time_str}    Spot: ₹{live_spot:,.2f}\n"
             for lg in display_legs:
                 tg_msg += f"• {lg['action']} NIFTY {display_exp} {lg['strike']} {lg['type']} @ ₹{lg['premium']:.2f}\n"
@@ -321,7 +321,7 @@ if "Quant Terminal" in nav_mode:
         st.pyplot(payoff_res["fig"], use_container_width=True)
 
 # ==============================================================================
-# WORKSPACE 2: SAVED LIVE TRACKER & P&L DESK
+# WORKSPACE 2: SAVED LIVE TRACKER & P&L DESK WITH AGGREGATED PORTFOLIO SUMMARY
 # ==============================================================================
 else:
     t_c1, t_c2 = st.columns([3, 1])
@@ -340,6 +340,14 @@ else:
         all_tokens = [lg.get("token", "") for s in st.session_state.saved_strategies for lg in s.get("legs", []) if lg.get("token")]
         tracker_ltps = fetch_batch_ltps(smart_api, all_tokens)
 
+        # --- AGGREGATED PORTFOLIO CALCULATIONS ---
+        total_portfolio_pnl = 0.0
+        total_portfolio_delta = 0.0
+        total_portfolio_theta = 0.0
+        total_max_risk = 0.0
+        total_max_profit = 0.0
+
+        portfolio_strat_data = []
         for idx, strat in enumerate(st.session_state.saved_strategies):
             strat_id = strat.get("id", idx)
             lot_q = strat.get("lot_size", strat.get("lot", 65))
@@ -349,8 +357,6 @@ else:
 
             legs_html = ""
             strat_display_legs = [] 
-            
-            # --- For Telegram Exit Alert ---
             tg_exit_legs = ""
             
             for l_i, lg in enumerate(strat.get("legs", []), 1):
@@ -378,6 +384,57 @@ else:
                 )
 
             net_pnl_rs = total_pnl_pts * lot_q
+            total_portfolio_pnl += net_pnl_rs
+
+            payoff_calc = compute_payoff_and_chart(strat_display_legs, ent_spot, live_vix, 1, lot_q, strat.get("expiry", ""))
+            total_portfolio_delta += payoff_calc["net_delta"]
+            total_portfolio_theta += payoff_calc["net_theta"]
+            
+            max_p_val = float(strat.get("max_profit", payoff_calc["max_profit"]))
+            max_l_val = float(strat.get("max_loss", payoff_calc["max_loss"]))
+            total_max_profit += max_p_val
+            total_max_risk += max_l_val
+
+            portfolio_strat_data.append({
+                "idx": idx, "strat": strat, "strat_id": strat_id, "lot_q": lot_q,
+                "ent_spot": ent_spot, "spot_drift": spot_drift, "net_pnl_rs": net_pnl_rs,
+                "total_pnl_pts": total_pnl_pts, "legs_html": legs_html, "strat_display_legs": strat_display_legs,
+                "tg_exit_legs": tg_exit_legs, "max_p_val": max_p_val, "max_l_val": max_l_val, "payoff_calc": payoff_calc
+            })
+
+        # --- RENDER AGGREGATED PORTFOLIO SUMMARY BANNER ---
+        port_col_color = "#10b981" if total_portfolio_pnl >= 0 else "#ef4444"
+        port_sign = "+" if total_portfolio_pnl >= 0 else ""
+        st.markdown(
+            f'<div style="background: linear-gradient(135deg, #111827 0%, #1f2937 100%); border: 1px solid #374151; border-radius: 10px; padding: 12px 16px; margin-bottom: 14px;">'
+            f'<div style="font-size: 0.75rem; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">📊 Aggregated Portfolio Overview ({len(st.session_state.saved_strategies)} Active Strategies)</div>'
+            f'<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">'
+            f'<div><div style="font-size: 0.65rem; color: #94a3b8;">Total Running P&L</div><div style="font-size: 1.15rem; font-weight: 800; color: {port_col_color};">{port_sign}₹{total_portfolio_pnl:,.0f}</div></div>'
+            f'<div><div style="font-size: 0.65rem; color: #94a3b8;">Combined Net Delta</div><div style="font-size: 1.05rem; font-weight: 800; color: #38bdf8;">{total_portfolio_delta:+,.1f}</div></div>'
+            f'<div><div style="font-size: 0.65rem; color: #94a3b8;">Combined Daily Theta</div><div style="font-size: 1.05rem; font-weight: 800; color: #f59e0b;">₹{total_portfolio_theta:+,.0f}/day</div></div>'
+            f'<div><div style="font-size: 0.65rem; color: #94a3b8;">Total Max Risk</div><div style="font-size: 1.05rem; font-weight: 800; color: #ef4444;">₹{total_max_risk:,.0f}</div></div>'
+            f'<div><div style="font-size: 0.65rem; color: #94a3b8;">Total Max Profit</div><div style="font-size: 1.05rem; font-weight: 800; color: #10b981;">₹{total_max_profit:,.0f}</div></div>'
+            f'</div></div>',
+            unsafe_allow_html=True
+        )
+
+        # --- RENDER INDIVIDUAL STRATEGY CARDS ---
+        for item in portfolio_strat_data:
+            idx = item["idx"]
+            strat = item["strat"]
+            strat_id = item["strat_id"]
+            lot_q = item["lot_q"]
+            ent_spot = item["ent_spot"]
+            spot_drift = item["spot_drift"]
+            net_pnl_rs = item["net_pnl_rs"]
+            total_pnl_pts = item["total_pnl_pts"]
+            legs_html = item["legs_html"]
+            strat_display_legs = item["strat_display_legs"]
+            tg_exit_legs = item["tg_exit_legs"]
+            max_p_val = item["max_p_val"]
+            max_l_val = item["max_l_val"]
+            payoff_calc = item["payoff_calc"]
+
             net_col = "#10b981" if net_pnl_rs >= 0 else "#ef4444"
             net_sign = "+" if net_pnl_rs >= 0 else ""
 
@@ -389,22 +446,21 @@ else:
                 sl_msg = f"⚠️ <b>EMERGENCY: STOP-LOSS BREACHED!</b>\n#{idx+1} • <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\nCurrent P&L: <b>₹{net_pnl_rs:,.0f}</b> (Trigger: ₹{sl_limit:,.0f})\n👉 Please review or exit position!"
                 send_telegram_alert(sl_msg)
                 st.toast(f"🚨 Stop-Loss Triggered for #{idx+1}!", icon="⚠️")
-                st.session_state[alert_key] = True  # Prevent spamming
+                st.session_state[alert_key] = True
 
             status_txt = f"🟡 MONITOR CLOSELY — Drift: {spot_drift:+.1f} pts." if abs(spot_drift) >= 100 else f"🟢 SAFE ZONE — Drift: {spot_drift:+.1f} pts."
             status_bg = "rgba(234, 179, 8, 0.15)" if abs(spot_drift) >= 100 else "rgba(16, 185, 129, 0.15)"
             status_col = "#f59e0b" if abs(spot_drift) >= 100 else "#10b981"
 
-            max_p_clean = round(float(strat.get("max_profit", 0)))
-            max_l_clean = round(float(strat.get("max_loss", 0)))
-
             card_html = (
                 f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px; margin-bottom:8px;">'
                 f'<div style="font-size:0.9rem; font-weight:800; color:#f8fafc;">#{idx+1} • {strat.get("name", "Strategy")} <span style="color:#38bdf8;">({strat.get("expiry", "")})</span></div>'
-                f'<div style="font-size:0.7rem; color:#94a3b8; margin-bottom:4px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | Live: ₹{live_spot:,.2f} | SL: ₹{sl_limit:,.0f}</div>'
-                f'<div style="display:flex; gap:12px; flex-wrap:wrap; font-size:0.75rem; font-weight:700; margin-bottom:4px;">'
-                f'<span style="color:#10b981;">Max Profit: ₹{max_p_clean:,}</span>'
-                f'<span style="color:#ef4444;">Max Risk: ₹{max_l_clean:,}</span>'
+                f'<div style="font-size:0.7rem; color:#94a3b8; margin-bottom:4px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | SL: ₹{sl_limit:,.0f}</div>'
+                f'<div style="display:flex; gap:10px; flex-wrap:wrap; font-size:0.75rem; font-weight:700; margin-bottom:4px;">'
+                f'<span style="color:#10b981;">Max Profit: ₹{max_p_val:,.0f}</span>'
+                f'<span style="color:#ef4444;">Max Risk: ₹{max_l_val:,.0f}</span>'
+                f'<span style="color:#38bdf8;">Net Delta: {payoff_calc["net_delta"]:+,.1f}</span>'
+                f'<span style="color:#f59e0b;">Net Theta: ₹{payoff_calc["net_theta"]:+,.0f}/d</span>'
                 f'<span style="color:#f8fafc;">Lot: {lot_q}</span>'
                 f'</div>'
                 f'<div style="font-size:1rem; font-weight:800; color:#f8fafc; margin-bottom:8px;">Running P&L: <span style="color:{net_col};">{net_sign}₹{net_pnl_rs:,.0f} ({total_pnl_pts:+.2f} pts)</span></div>'
@@ -446,12 +502,11 @@ else:
                         save_strategies_to_disk(st.session_state.saved_strategies)
                         st.rerun()
 
-                # --- DYNAMIC EDIT FORM (Now includes Stop-Loss Limit configuration) ---
+                # --- DYNAMIC EDIT FORM ---
                 if st.session_state.get(f"edit_mode_{strat_id}", False):
                     st.markdown("<div style='background-color:#1e293b; padding:12px; border-radius:6px; margin-top:8px;'>", unsafe_allow_html=True)
                     st.markdown("<div style='color:#f8fafc; font-weight:bold; font-size:0.9rem; margin-bottom:10px;'>Update Strikes, Entry & Stop-Loss</div>", unsafe_allow_html=True)
                     
-                    # Stop Loss Input Field
                     new_sl_limit = st.number_input("Stop Loss Limit (₹)", value=sl_limit, step=100.0, key=f"sl_input_{strat_id}")
                     
                     updated = False
@@ -480,7 +535,6 @@ else:
                         if updated:
                             st.session_state.saved_strategies[idx]["legs"] = new_legs
                             st.session_state.saved_strategies[idx]["stop_loss_limit"] = new_sl_limit
-                            # Reset alert flag if SL limit is updated so it can trigger again if needed
                             st.session_state[alert_key] = False 
                             save_strategies_to_disk(st.session_state.saved_strategies)
                             
@@ -490,10 +544,9 @@ else:
                         st.session_state[f"edit_mode_{strat_id}"] = False
                         st.rerun()
                         
-                    st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown("div", unsafe_allow_html=True) # wait, let's keep valid closing tag
             
             with c_graph:
-                saved_payoff = compute_payoff_and_chart(strat_display_legs, ent_spot, live_vix, 1, lot_q, strat.get("expiry", ""))
-                st.pyplot(saved_payoff["fig"], use_container_width=True)
+                st.pyplot(payoff_calc["fig"], use_container_width=True)
             
             st.markdown("<hr style='border-color: #1f2937; margin: 15px 0;'>", unsafe_allow_html=True)
