@@ -58,61 +58,66 @@ active_count = len(st.session_state.saved_strategies)
 api_status_badge = "🟢 LIVE NFO API" if smart_api else "🟡 SIMULATED MODE"
 api_badge_color = "#10b981" if smart_api else "#f59e0b"
 
-# --- TOP HEADER BAR ---
-st.markdown(
-    f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px 14px; margin-bottom:8px;">'
-    f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">'
-    f'<div>'
-    f'<div style="font-size:1.05rem; font-weight:800; letter-spacing:0.4px; color:#f8fafc;">📊 NIFTY INSTITUTIONAL QUANT TERMINAL</div>'
-    f'<div style="font-size:0.72rem; color:#38bdf8;">Advanced Delta & OI-Synced Options Analytics & Live Tracker</div>'
-    f'</div>'
-    f'<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">'
-    f'<span style="background:#1e293b; color:#e2e8f0; padding:3px 8px; border-radius:5px; font-size:0.72rem; font-weight:600;">🕒 {ist_time_str} | Active: {active_count}</span>'
-    f'<span style="background:#1e293b; color:{api_badge_color}; padding:3px 8px; border-radius:5px; font-size:0.72rem; font-weight:600;">{api_status_badge}</span>'
-    f'</div></div></div>',
-    unsafe_allow_html=True
-)
-
-# --- TOP MARKET TICKER BAR (Controlled via CSS Classes) ---
-t1, t2, t3 = st.columns(3)
-for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty"), (t3, "SENSEX", "sensex")]:
-    with col:
-        d = market_data[key]
-        ltp = d["ltp"]
-        close = d["close"] if d["close"] > 0 else ltp
-        diff = ltp - close
-        pct = (diff / close) * 100 if close > 0 else 0.0
-        css_class = "ticker-ltp-green" if diff >= 0 else "ticker-ltp-red"
-        sign_str = "+" if diff >= 0 else ""
-
-        st.markdown(
-            f'<div style="background-color: #111827; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 8px; text-align: center; margin-bottom: 4px;">'
-            f'<div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">'
-            f'{name}: <span class="{css_class}">₹{ltp:,.2f}</span> '
-            f'<span class="ticker-change">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>'
-            f'</div>'
-            f'<div style="font-size: 0.65rem; color: #94a3b8; margin-top: 2px;">O: {d["open"]:,.1f} | H: {d["high"]:,.1f} | L: {d["low"]:,.1f} | C: {close:,.1f}</div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-# --- COMMAND NAVIGATION & 7s SYNC TOGGLE BAR ---
-nav_col1, nav_col2 = st.columns([3, 1])
-with nav_col1:
-    nav_mode = st.radio(
-        "Workspace",
-        ["⚡ Quant Terminal", "🛡️ Saved Live Tracker"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="main_nav_mode"
+# ==============================================================================
+# FIXED TOP COMMAND HEADER (LOCKED TO VIEWPORT TOP VIA CSS)
+# ==============================================================================
+with st.container():
+    # --- TOP HEADER BAR ---
+    st.markdown(
+        f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px 14px; margin-bottom:8px;">'
+        f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">'
+        f'<div>'
+        f'<div style="font-size:1.05rem; font-weight:800; letter-spacing:0.4px; color:#f8fafc;">📊 NIFTY INSTITUTIONAL QUANT TERMINAL</div>'
+        f'<div style="font-size:0.72rem; color:#38bdf8;">Advanced Delta & OI-Synced Options Analytics & Live Tracker</div>'
+        f'</div>'
+        f'<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">'
+        f'<span style="background:#1e293b; color:#e2e8f0; padding:3px 8px; border-radius:5px; font-size:0.72rem; font-weight:600;">🕒 {ist_time_str} | Active: {active_count}</span>'
+        f'<span style="background:#1e293b; color:{api_badge_color}; padding:3px 8px; border-radius:5px; font-size:0.72rem; font-weight:600;">{api_status_badge}</span>'
+        f'</div></div></div>',
+        unsafe_allow_html=True
     )
-with nav_col2:
-    auto_refresh_on = st.toggle("Sync (7s)", value=True, key="top_sync_toggle")
+
+    # --- TOP MARKET TICKER BAR (Controlled via CSS Classes) ---
+    t1, t2, t3 = st.columns(3)
+    for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty"), (t3, "SENSEX", "sensex")]:
+        with col:
+            d = market_data[key]
+            ltp = d["ltp"]
+            close = d["close"] if d["close"] > 0 else ltp
+            diff = ltp - close
+            pct = (diff / close) * 100 if close > 0 else 0.0
+            css_class = "ticker-ltp-green" if diff >= 0 else "ticker-ltp-red"
+            sign_str = "+" if diff >= 0 else ""
+
+            st.markdown(
+                f'<div style="background-color: #111827; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 8px; text-align: center; margin-bottom: 4px;">'
+                f'<div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">'
+                f'{name}: <span class="{css_class}">₹{ltp:,.2f}</span> '
+                f'<span class="ticker-change">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>'
+                f'</div>'
+                f'<div style="font-size: 0.65rem; color: #94a3b8; margin-top: 2px;">O: {d["open"]:,.1f} | H: {d["high"]:,.1f} | L: {d["low"]:,.1f} | C: {close:,.1f}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+    # --- COMMAND NAVIGATION & 7s SYNC TOGGLE BAR ---
+    nav_col1, nav_col2 = st.columns([3, 1])
+    with nav_col1:
+        nav_mode = st.radio(
+            "Workspace",
+            ["⚡ Quant Terminal", "🛡️ Saved Live Tracker"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="main_nav_mode"
+        )
+    with nav_col2:
+        auto_refresh_on = st.toggle("Sync (7s)", value=True, key="top_sync_toggle")
+
+    st.markdown("<hr style='margin: 4px 0 10px 0; border-color: #1f2937;'>", unsafe_allow_html=True)
 
 if auto_refresh_on:
     st_autorefresh(interval=7 * 1000, key="terminal_fixed_sync_v10")
 
-st.markdown("<hr style='margin: 4px 0 10px 0; border-color: #1f2937;'>", unsafe_allow_html=True)
 
 # ==============================================================================
 # WORKSPACE 1: QUANT TERMINAL (STRATEGY BUILDER & ANALYTICS)
@@ -225,13 +230,9 @@ if "Quant Terminal" in nav_mode:
         display_legs, live_spot, live_vix, dte_days, lot_size, display_exp
     )
 
-    # --- RESPONSIVE SIDE-BY-SIDE LAYOUT (PC = Side-by-Side, Mobile = Stacked) ---
-    col_chart, col_legs = st.columns([1.3, 1], gap="medium")
+    # --- RESPONSIVE SIDE-BY-SIDE LAYOUT (Legs Left, Graph Right) ---
+    col_legs, col_chart = st.columns([1, 1.3], gap="medium")
     
-    with col_chart:
-        # RENDER MATPLOTLIB IMAGE CHART
-        st.pyplot(payoff_res["fig"], use_container_width=True)
-
     with col_legs:
         # Title Card
         st.markdown(
@@ -293,8 +294,12 @@ if "Quant Terminal" in nav_mode:
             st.success("✅ Strategy saved to GitHub & Live Tracker!")
             st.rerun()
 
+    with col_chart:
+        # RENDER MATPLOTLIB IMAGE CHART
+        st.pyplot(payoff_res["fig"], use_container_width=True)
+
 # ==============================================================================
-# WORKSPACE 2: SAVED LIVE TRACKER & P&L DESK (WITH SIDE-BY-SIDE GRAPH)
+# WORKSPACE 2: SAVED LIVE TRACKER & P&L DESK (Info Left, Graph Right)
 # ==============================================================================
 else:
     st.markdown(f"### 🛡️ Live Trade Tracker & P&L Desk ({len(st.session_state.saved_strategies)} Active)")
@@ -383,13 +388,8 @@ else:
                 f'</div>'
             )
 
-            # 2. Render Side-by-Side Layout
-            c_graph, c_info = st.columns([1.3, 1], gap="medium")
-            
-            with c_graph:
-                # Compute Payoff strictly based on Entry Data for the chart
-                saved_payoff = compute_payoff_and_chart(strat_display_legs, ent_spot, live_vix, 1, lot_q, strat.get("expiry", ""))
-                st.pyplot(saved_payoff["fig"], use_container_width=True)
+            # 2. Render Side-by-Side Layout (Info Left, Graph Right)
+            c_info, c_graph = st.columns([1, 1.3], gap="medium")
             
             with c_info:
                 st.markdown(card_html, unsafe_allow_html=True)
@@ -414,5 +414,10 @@ else:
                     st.session_state.saved_strategies.pop(idx)
                     save_strategies_to_disk(st.session_state.saved_strategies)
                     st.rerun()
+            
+            with c_graph:
+                # Compute Payoff strictly based on Entry Data for the chart
+                saved_payoff = compute_payoff_and_chart(strat_display_legs, ent_spot, live_vix, 1, lot_q, strat.get("expiry", ""))
+                st.pyplot(saved_payoff["fig"], use_container_width=True)
             
             st.markdown("<hr style='border-color: #1f2937; margin: 25px 0;'>", unsafe_allow_html=True)
