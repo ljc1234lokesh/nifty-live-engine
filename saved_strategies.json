@@ -13,7 +13,7 @@
         "action": "BUY",
         "type": "PE",
         "strike": 25050,
-        "entry_price": 51.56,
+        "entry_price": 52.0,
         "token": "45389",
         "symbol": "NIFTY26N1725050PE"
       },
