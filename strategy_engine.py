@@ -168,7 +168,7 @@ def _bs_option_price(S, K, T, r, sigma, opt_type):
     else:
         return K * np.exp(-r * T) * norm.cdf(-d2) - S * norm.cdf(-d1)
 
-def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_size, display_exp, light_mode=False):
+def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_size, display_exp):
     spot_range = np.linspace(live_spot - 800, live_spot + 800, 300)
     pnl_expiry = np.zeros_like(spot_range)
     pnl_t0 = np.zeros_like(spot_range)
@@ -182,11 +182,9 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
         k, prem = leg["strike"], leg["premium"]
         net_credit += prem if leg["action"] == "SELL" else -prem
         
-        # Expiry intrinsic value
         intrinsic = np.maximum(0, spot_range - k) if leg["type"] == "CE" else np.maximum(0, k - spot_range)
         pnl_expiry += (intrinsic - prem) if leg["action"] == "BUY" else (prem - intrinsic)
 
-        # T+0 (Today's Theoretical Live Curve anchored to entry premium)
         theo_at_spot = _bs_option_price(live_spot, k, T_years, r_rate, sigma, leg["type"])
         theo_curve = _bs_option_price(spot_range, k, T_years, r_rate, sigma, leg["type"])
         est_live_prem = np.maximum(0.05, prem + (theo_curve - theo_at_spot))
@@ -206,16 +204,8 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
     pop_percent = float((norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100)
     rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
-    # Theme colors based on Night / Light Mode
-    bg_plot = "#ffffff" if light_mode else "#111827"
-    bg_paper = "#f8fafc" if light_mode else "#0b0f19"
-    text_col = "#0f172a" if light_mode else "#e2e8f0"
-    grid_col = "#e2e8f0" if light_mode else "#1f2937"
-    sub_text = "#475569" if light_mode else "#94a3b8"
-
     fig = go.Figure()
 
-    # Green Profit Fill & Red Loss Fill on Expiry
     pnl_pos = np.where(pnl_exp_lot >= 0, pnl_exp_lot, 0)
     pnl_neg = np.where(pnl_exp_lot < 0, pnl_exp_lot, 0)
 
@@ -230,7 +220,6 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
         hoverinfo="skip", showlegend=False
     ))
 
-    # Main Expiry Payoff Line
     fig.add_trace(go.Scatter(
         x=spot_range, y=pnl_exp_lot, mode="lines",
         name="Expiry P&L",
@@ -238,52 +227,50 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
         hovertemplate="<b>Expiry P&L:</b> ₹%{y:,.0f}<extra></extra>"
     ))
 
-    # T+0 Intraday Payoff Line (Sensibull Style)
     fig.add_trace(go.Scatter(
         x=spot_range, y=pnl_t0_lot, mode="lines",
         name="Target Today (T+0)",
-        line=dict(color="#38bdf8" if not light_mode else "#2563eb", width=2, dash="dot"),
+        line=dict(color="#38bdf8", width=2, dash="dot"),
         hovertemplate="<b>Today (T+0) P&L:</b> ₹%{y:,.0f}<extra></extra>"
     ))
 
-    # Zero Line, Spot Line & Breakeven Lines
-    fig.add_hline(y=0, line_dash="dash", line_color=sub_text, line_width=1)
+    fig.add_hline(y=0, line_dash="dash", line_color="#94a3b8", line_width=1)
     fig.add_vline(x=live_spot, line_dash="dot", line_color="#f59e0b", line_width=1.8,
                   annotation_text=f"Spot: {live_spot:.0f}", annotation_position="top",
                   annotation_font=dict(color="#f59e0b", size=10))
-    fig.add_vline(x=lower_be, line_dash="dash", line_color=sub_text, line_width=1,
+    fig.add_vline(x=lower_be, line_dash="dash", line_color="#94a3b8", line_width=1,
                   annotation_text=f"BE: {lower_be:.0f}", annotation_position="bottom left",
-                  annotation_font=dict(color=sub_text, size=9))
-    fig.add_vline(x=upper_be, line_dash="dash", line_color=sub_text, line_width=1,
+                  annotation_font=dict(color="#94a3b8", size=9))
+    fig.add_vline(x=upper_be, line_dash="dash", line_color="#94a3b8", line_width=1,
                   annotation_text=f"BE: {upper_be:.0f}", annotation_position="bottom right",
-                  annotation_font=dict(color=sub_text, size=9))
+                  annotation_font=dict(color="#94a3b8", size=9))
 
     fig.update_layout(
         title=dict(
             text=f"<b>Interactive Payoff ({display_exp})</b> | Breakeven: {lower_be:.0f} – {upper_be:.0f}",
-            font=dict(color=text_col, size=12.5), x=0.01, y=0.96
+            font=dict(color="#e2e8f0", size=12.5), x=0.01, y=0.96
         ),
-        paper_bgcolor=bg_paper,
-        plot_bgcolor=bg_plot,
-        font=dict(color=text_col, size=11),
+        paper_bgcolor="#0b0f19",
+        plot_bgcolor="#111827",
+        font=dict(color="#e2e8f0", size=11),
         margin=dict(l=10, r=10, t=38, b=10),
         height=340,
         hovermode="x unified",
-        hoverlabel=dict(bgcolor=bg_plot, font_size=11, font_color=text_col, bordercolor=grid_col),
+        hoverlabel=dict(bgcolor="#111827", font_size=11, font_color="#e2e8f0", bordercolor="#1f2937"),
         xaxis=dict(
             title="NIFTY Spot Price",
-            gridcolor=grid_col, zeroline=False,
-            tickfont=dict(color=sub_text, size=10),
+            gridcolor="#1f2937", zeroline=False,
+            tickfont=dict(color="#94a3b8", size=10),
             spikemode="across", spikesnap="cursor", spikecolor="#f59e0b", spikethickness=1
         ),
         yaxis=dict(
             title=f"P&L (₹ / {lot_size} Qty)",
-            gridcolor=grid_col, zeroline=False,
-            tickfont=dict(color=sub_text, size=10)
+            gridcolor="#1f2937", zeroline=False,
+            tickfont=dict(color="#94a3b8", size=10)
         ),
         legend=dict(
             orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1,
-            bgcolor="rgba(0,0,0,0)", font=dict(color=text_col, size=10)
+            bgcolor="rgba(0,0,0,0)", font=dict(color="#e2e8f0", size=10)
         ),
         dragmode="pan"
     )
