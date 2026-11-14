@@ -407,12 +407,11 @@ else:
             with c_info:
                 st.markdown(card_html, unsafe_allow_html=True)
                 
-                # --- NEW: 3 BUTTONS SIDE BY SIDE ---
+                # --- 3 BUTTONS SIDE BY SIDE ---
                 btn_c1, btn_c2, btn_c3 = st.columns(3)
                 
                 with btn_c1:
                     if st.button("🚪 Exit Trade", key=f"exit_{strat_id}", use_container_width=True):
-                        # Exit: Detailed TG Notification
                         pnl_status = "🟢 PROFIT BOOKED" if net_pnl_rs >= 0 else "🔴 LOSS BOOKED"
                         tg_msg = f"🚪 <b>TRADE EXITED — {pnl_status}</b>\nSaved: {strat.get('saved_time', '')}\n#{idx+1}. <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\nNet: {net_sign}{total_pnl_pts:+.2f} pts | P&L: <b>{net_sign}₹{net_pnl_rs:,.0f}</b>\n{tg_exit_legs}"
                         send_telegram_alert(tg_msg)
@@ -432,7 +431,6 @@ else:
                         
                 with btn_c3:
                     if st.button("🗑️ Delete", key=f"del_{strat_id}", use_container_width=True):
-                        # Delete: Quietly removes strategy (NO Notification)
                         st.session_state.saved_strategies.pop(idx)
                         save_strategies_to_disk(st.session_state.saved_strategies)
                         st.rerun()
@@ -444,7 +442,7 @@ else:
                     
                     updated = False
                     new_legs = []
-                    tg_edit_msg = f"✏️ <b>TRADE EDITED</b>\n#{idx+1}. <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\n"
+                    tg_edit_msg = f"✏️ <b>TRADE EDITED</b>\n#{idx+1} • <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\nUpdated: {ist_time_str}    Spot: ₹{live_spot:,.2f}\n"
                     
                     for l_i, lg in enumerate(strat.get("legs", [])):
                         cur_ent_val = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
@@ -457,14 +455,14 @@ else:
                         new_legs.append({"action": lg["action"], "type": lg["type"], "strike": new_st, "entry_price": new_pr, "token": lg.get("token", ""), "symbol": lg.get("symbol", "")})
                         if new_st != lg["strike"] or new_pr != cur_ent_val:
                             updated = True
-                            tg_edit_msg += f"• Leg {l_i+1}: {lg['action']} {lg['type']} -> Strike: {new_st}, Entry: ₹{new_pr}\n"
+                            
+                        tg_edit_msg += f"• {lg['action']} NIFTY {strat.get('expiry', '')} {new_st} {lg['type']} @ ₹{new_pr:.2f}\n"
                     
-                   if st.button("💾 Save Changes", key=f"save_{strat_id}", type="primary", use_container_width=True):
+                    if st.button("💾 Save Changes", key=f"save_{strat_id}", type="primary", use_container_width=True):
                         if updated:
                             st.session_state.saved_strategies[idx]["legs"] = new_legs
                             save_strategies_to_disk(st.session_state.saved_strategies)
                             
-                            # Detailed Edit Notification
                             send_telegram_alert(tg_edit_msg)
                             st.toast("🚀 Telegram Notification Sent: Trade Edited!", icon="✅")
                             
@@ -476,5 +474,3 @@ else:
             with c_graph:
                 saved_payoff = compute_payoff_and_chart(strat_display_legs, ent_spot, live_vix, 1, lot_q, strat.get("expiry", ""))
                 st.pyplot(saved_payoff["fig"], use_container_width=True)
-            
-            st.markdown("<hr style='border-color: #1f2937; margin: 15px 0;'>", unsafe_allow_html=True)
