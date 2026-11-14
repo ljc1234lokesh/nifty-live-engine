@@ -79,30 +79,15 @@ with st.container():
         unsafe_allow_html=True
     )
 
-    # --- TOP MARKET TICKER BAR (Custom Responsive 2x2 Grid on Mobile) ---
-    ticker_html = f"""
-    <style>
-    .ticker-grid {{
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 8px;
-        margin-bottom: 8px;
-    }}
-    @media (max-width: 768px) {{
-        .ticker-grid {{
-            grid-template-columns: repeat(2, 1fr);
-        }}
-    }}
-    .ticker-box {{
-        background-color: #111827;
-        border: 1px solid #1f2937;
-        border-radius: 6px;
-        padding: 6px 8px;
-        text-align: center;
-    }}
-    </style>
-    <div class="ticker-grid">
-    """
+    # --- TOP MARKET TICKER BAR (Custom Responsive 2x2 Grid on Mobile, Flattened HTML) ---
+    ticker_html = (
+        '<style>'
+        '.ticker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 8px; } '
+        '@media (max-width: 768px) { .ticker-grid { grid-template-columns: repeat(2, 1fr); } } '
+        '.ticker-box { background-color: #111827; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 8px; text-align: center; }'
+        '</style>'
+        '<div class="ticker-grid">'
+    )
     for name, key in [("NIFTY 50", "nifty"), ("BANKNIFTY", "banknifty"), ("SENSEX", "sensex")]:
         d = market_data[key]
         ltp = d["ltp"]
@@ -112,26 +97,26 @@ with st.container():
         css_color = "#34d399" if diff >= 0 else "#f87171"
         sign_str = "+" if diff >= 0 else ""
         
-        ticker_html += f"""
-        <div class="ticker-box">
-            <div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">
-                {name}: <span style="color: {css_color}; font-weight: 700;">₹{ltp:,.2f}</span>
-                <span style="color: #94a3b8; font-size: 0.8rem; font-weight: normal;">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>
-            </div>
-            <div style="font-size: 0.65rem; color: #94a3b8; margin-top: 2px;">
-                O: {d['open']:,.1f} | H: {d['high']:,.1f} | L: {d['low']:,.1f} | C: {close:,.1f}
-            </div>
-        </div>
-        """
-    # INDIA VIX 
-    ticker_html += f"""
-        <div class="ticker-box" style="display: flex; flex-direction: column; justify-content: center;">
-            <div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">
-                INDIA VIX: <span style="color: #38bdf8; font-weight: 800;">{live_vix:.2f}</span>
-            </div>
-        </div>
-    </div>
-    """
+        ticker_html += (
+            f'<div class="ticker-box">'
+            f'<div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">'
+            f'{name}: <span style="color: {css_color}; font-weight: 700;">₹{ltp:,.2f}</span> '
+            f'<span style="color: #94a3b8; font-size: 0.8rem; font-weight: normal;">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>'
+            f'</div>'
+            f'<div style="font-size: 0.65rem; color: #94a3b8; margin-top: 2px;">'
+            f'O: {d["open"]:,.1f} | H: {d["high"]:,.1f} | L: {d["low"]:,.1f} | C: {close:,.1f}'
+            f'</div>'
+            f'</div>'
+        )
+        
+    ticker_html += (
+        f'<div class="ticker-box" style="display: flex; flex-direction: column; justify-content: center;">'
+        f'<div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">'
+        f'INDIA VIX: <span style="color: #38bdf8; font-weight: 800;">{live_vix:.2f}</span>'
+        f'</div>'
+        f'</div>'
+        f'</div>'
+    )
     st.markdown(ticker_html, unsafe_allow_html=True)
 
     # --- COMMAND NAVIGATION & 7s SYNC TOGGLE BAR ---
@@ -195,50 +180,40 @@ if "Quant Terminal" in nav_mode:
     pcr_sentiment = "Bullish Support" if live_pcr >= 1.15 else ("Bearish Pressure" if live_pcr <= 0.78 else "Neutral / Range")
     pcr_color = "#10b981" if live_pcr >= 1.0 else "#f59e0b"
 
-    # --- 4 INSTITUTIONAL METRIC CARDS (Custom Responsive 2x2 Grid on Mobile) ---
-    metrics_html = f"""
-    <style>
-    .metrics-grid {{
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 12px;
-        margin-bottom: 8px;
-    }}
-    @media (max-width: 768px) {{
-        .metrics-grid {{
-            grid-template-columns: repeat(2, 1fr);
-        }}
-    }}
-    .metric-box {{
-        background-color: #111827;
-        border: 1px solid #1f2937;
-        border-radius: 8px;
-        padding: 10px 12px;
-    }}
-    </style>
-    <div class="metrics-grid">
-        <div class="metric-box">
-            <div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">LIVE PCR (🟢)</div>
-            <div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">{live_pcr:.2f}</div>
-            <div style="font-size:0.72rem; color:{pcr_color}; font-weight:600;">{pcr_sentiment}</div>
-        </div>
-        <div class="metric-box">
-            <div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">MAX PAIN</div>
-            <div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">₹{live_max_pain}</div>
-            <div style="font-size:0.72rem; color:#a855f7; font-weight:600;">Expiry Magnet</div>
-        </div>
-        <div class="metric-box">
-            <div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">PUT SUPPORT</div>
-            <div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">₹{put_wall}</div>
-            <div style="font-size:0.72rem; color:#10b981; font-weight:600;">OI: {oi_data['put_wall_oi']:,}</div>
-        </div>
-        <div class="metric-box">
-            <div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">CALL RESISTANCE</div>
-            <div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">₹{call_wall}</div>
-            <div style="font-size:0.72rem; color:#ef4444; font-weight:600;">OI: {oi_data['call_wall_oi']:,}</div>
-        </div>
-    </div>
-    """
+    # --- 4 INSTITUTIONAL METRIC CARDS (Custom Responsive 2x2 Grid on Mobile, Flattened HTML) ---
+    metrics_html = (
+        '<style>'
+        '.metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 8px; } '
+        '@media (max-width: 768px) { .metrics-grid { grid-template-columns: repeat(2, 1fr); } } '
+        '.metric-box { background-color: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 10px 12px; }'
+        '</style>'
+        '<div class="metrics-grid">'
+        
+        f'<div class="metric-box">'
+        f'<div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">LIVE PCR (🟢)</div>'
+        f'<div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">{live_pcr:.2f}</div>'
+        f'<div style="font-size:0.72rem; color:{pcr_color}; font-weight:600;">{pcr_sentiment}</div>'
+        f'</div>'
+        
+        f'<div class="metric-box">'
+        f'<div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">MAX PAIN</div>'
+        f'<div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">₹{live_max_pain}</div>'
+        f'<div style="font-size:0.72rem; color:#a855f7; font-weight:600;">Expiry Magnet</div>'
+        f'</div>'
+        
+        f'<div class="metric-box">'
+        f'<div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">PUT SUPPORT</div>'
+        f'<div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">₹{put_wall}</div>'
+        f'<div style="font-size:0.72rem; color:#10b981; font-weight:600;">OI: {oi_data["put_wall_oi"]:,}</div>'
+        f'</div>'
+        
+        f'<div class="metric-box">'
+        f'<div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">CALL RESISTANCE</div>'
+        f'<div style="font-size:1.3rem; font-weight:800; color:#f8fafc; margin:2px 0;">₹{call_wall}</div>'
+        f'<div style="font-size:0.72rem; color:#ef4444; font-weight:600;">OI: {oi_data["call_wall_oi"]:,}</div>'
+        f'</div>'
+        '</div>'
+    )
     st.markdown(metrics_html, unsafe_allow_html=True)
 
     # --- MARKET TIMING BANNER ---
