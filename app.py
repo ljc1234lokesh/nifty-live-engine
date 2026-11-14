@@ -77,8 +77,8 @@ with st.container():
         unsafe_allow_html=True
     )
 
-    # --- TOP MARKET TICKER BAR (Controlled via CSS Classes) ---
-    t1, t2, t3 = st.columns(3)
+    # --- TOP MARKET TICKER BAR (Now with 4 Columns: NIFTY, BANKNIFTY, SENSEX, INDIA VIX) ---
+    t1, t2, t3, t4 = st.columns(4)
     for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty"), (t3, "SENSEX", "sensex")]:
         with col:
             d = market_data[key]
@@ -99,6 +99,17 @@ with st.container():
                 f'</div>',
                 unsafe_allow_html=True
             )
+            
+    # Add INDIA VIX to the 4th column
+    with t4:
+        st.markdown(
+            f'<div style="background-color: #111827; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 8px; text-align: center; margin-bottom: 4px; height: 44px; display: flex; flex-direction: column; justify-content: center;">'
+            f'<div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">'
+            f'INDIA VIX: <span style="color: #38bdf8; font-weight: 800;">{live_vix:.2f}</span>'
+            f'</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
     # --- COMMAND NAVIGATION & 7s SYNC TOGGLE BAR ---
     nav_col1, nav_col2 = st.columns([3, 1])
@@ -161,14 +172,13 @@ if "Quant Terminal" in nav_mode:
 
     pcr_sentiment = "Bullish Support" if live_pcr >= 1.15 else ("Bearish Pressure" if live_pcr <= 0.78 else "Neutral / Range")
 
-    # --- 5 INSTITUTIONAL METRIC CARDS ---
-    m1, m2, m3, m4, m5 = st.columns(5)
+    # --- 4 INSTITUTIONAL METRIC CARDS (VIX removed from here) ---
+    m1, m2, m3, m4 = st.columns(4)
     metrics_info = [
-        (m1, "INDIA VIX", f"{live_vix:.2f}", "Volatility", "#38bdf8"),
-        (m2, "LIVE PCR (🟢)", f"{live_pcr:.2f}", pcr_sentiment, "#10b981" if live_pcr >= 1.0 else "#f59e0b"),
-        (m3, "MAX PAIN", f"₹{live_max_pain}", "Expiry Magnet", "#a855f7"),
-        (m4, "PUT SUPPORT", f"₹{put_wall}", f"OI: {oi_data['put_wall_oi']:,}", "#10b981"),
-        (m5, "CALL RESISTANCE", f"₹{call_wall}", f"OI: {oi_data['call_wall_oi']:,}", "#ef4444"),
+        (m1, "LIVE PCR (🟢)", f"{live_pcr:.2f}", pcr_sentiment, "#10b981" if live_pcr >= 1.0 else "#f59e0b"),
+        (m2, "MAX PAIN", f"₹{live_max_pain}", "Expiry Magnet", "#a855f7"),
+        (m3, "PUT SUPPORT", f"₹{put_wall}", f"OI: {oi_data['put_wall_oi']:,}", "#10b981"),
+        (m4, "CALL RESISTANCE", f"₹{call_wall}", f"OI: {oi_data['call_wall_oi']:,}", "#ef4444"),
     ]
     for col, title, val, sub, accent in metrics_info:
         with col:
