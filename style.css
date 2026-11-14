@@ -1,177 +1,38 @@
-/* --- 100% DARK THEME & TEXT CONTRAST ENFORCEMENT --- */
-.stApp {
-    background-color: #0b0f19 !important;
-    color: #f8fafc !important;
-}
-.block-container {
-    padding-top: 5.5rem !important;
-    padding-bottom: 2rem !important;
-    padding-left: 1rem !important;
-    padding-right: 1rem !important;
-    max-width: 100% !important;
-}
-header[data-testid="stHeader"] { display: none !important; }
-[data-stale="true"] { opacity: 1 !important; transition: none !important; }
-div[data-testid="stStatusWidget"] { display: none !important; }
-
-/* --- PERMANENT FIXED TOP BAR --- */
-.fixed-top-wrapper {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 99999;
-    background: #0b0f19 !important;
-    padding: 8px 12px 6px 12px;
-    border-bottom: 1px solid #1f2937;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+/* --- BASE THEME VARIABLES (NIGHT MODE DEFAULT) --- */
+:root {
+    --bg-app: #0b0f19;
+    --bg-card: #111827;
+    --border-card: #1f2937;
+    --text-primary: #f8fafc;
+    --text-muted: #94a3b8;
+    --badge-bg: #1e293b;
 }
 
-/* Brand Header */
-.brand-header {
-    background: linear-gradient(90deg, #111827 0%, #1f2937 50%, #111827 100%) !important;
-    border: 1px solid #374151 !important;
-    border-radius: 8px;
-    padding: 6px 12px;
-    margin-bottom: 4px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+    background-color: var(--bg-app) !important;
+    color: var(--text-primary) !important;
 }
 
-/* Top Index Tickers */
-.index-ticker {
-    background: #111827 !important;
-    border: 1px solid #1f2937 !important;
-    border-radius: 6px;
-    padding: 5px 8px;
-    text-align: center;
-    color: #f8fafc !important;
-    margin-bottom: 2px;
+/* Cards & Containers */
+.top-bar, .index-ticker, .metric-card, .leg-card, .tracker-card, .timing-banner {
+    background-color: var(--bg-card) !important;
+    border-color: var(--border-card) !important;
+    color: var(--text-primary) !important;
 }
 
-/* --- SPECIFIC FIX FOR RADIO BUTTONS & EXPIRIES (NO BUTTON HIDING) --- */
-.stRadio label p, div[data-baseweb="radio"] div {
-    color: #f8fafc !important;
-    font-weight: 600 !important;
-}
-div[data-testid="stMarkdownContainer"] p {
-    color: #f8fafc !important;
-}
+/* Primary & Muted Text */
+.txt-main { color: var(--text-primary) !important; }
+.txt-muted { color: var(--text-muted) !important; }
 
-/* Ensure standard Streamlit buttons remain normal and visible */
-.stButton button {
-    background-color: #1f2937 !important;
-    color: #f8fafc !important;
-    border: 1px solid #374151 !important;
-}
-.stButton button:hover {
-    background-color: #374151 !important;
-    color: #38bdf8 !important;
-    border-color: #38bdf8 !important;
-}
+/* Relevant Semantic Colors (Always Crisp in Both Modes) */
+.col-green, .ticker-ltp-green { color: #10b981 !important; font-weight: 700 !important; }
+.col-red, .ticker-ltp-red { color: #ef4444 !important; font-weight: 700 !important; }
+.col-blue { color: #38bdf8 !important; font-weight: 700 !important; }
+.col-purple { color: #a855f7 !important; font-weight: 700 !important; }
+.col-amber { color: #f59e0b !important; font-weight: 700 !important; }
+.ticker-change { color: var(--text-muted) !important; font-size: 0.8rem !important; font-weight: 500 !important; }
 
-/* 5-Card OI & Sentiment Strip */
-.analytics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
-    gap: 8px;
-    margin-bottom: 10px;
-}
-.card {
-    background: #111827 !important;
-    border: 1px solid #1f2937 !important;
-    border-radius: 8px;
-    padding: 9px 11px;
-    color: #f8fafc !important;
-}
-.card-label {
-    font-size: 0.70rem;
-    color: #94a3b8 !important;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 2px;
-}
-.card-val {
-    font-size: 1.12rem;
-    font-weight: 700;
-    color: #f8fafc !important;
-    white-space: nowrap;
-}
-.card-sub {
-    font-size: 0.70rem;
-    color: #38bdf8 !important;
-    margin-top: 2px;
-}
-
-/* Unified Section Boxes */
-.section-box {
-    background: #111827 !important;
-    border: 1px solid #1f2937 !important;
-    border-radius: 8px;
-    padding: 12px 14px;
-    margin-bottom: 10px;
-    color: #f8fafc !important;
-}
-.section-box b, .section-box div, .section-box span {
-    color: inherit;
-}
-
-/* Strategy Leg Rows */
-.leg-row {
-    background: #0b0f19 !important;
-    border-left: 4px solid #38bdf8;
-    padding: 8px 11px;
-    margin-bottom: 6px;
-    border-radius: 6px;
-    font-size: 0.86rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 4px;
-    color: #f8fafc !important;
-}
-.leg-row b {
-    color: #f8fafc !important;
-}
-.leg-row code {
-    background: #1e293b !important;
-    color: #38bdf8 !important;
-    padding: 2px 6px !important;
-    border-radius: 4px !important;
-    font-weight: 600 !important;
-    border: 1px solid #334155 !important;
-}
-
-/* Compact Risk Strip */
-.risk-strip {
-    display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
-    background: #0b0f19 !important;
-    border: 1px solid #1f2937 !important;
-    border-radius: 6px;
-    padding: 8px 12px;
-    margin-bottom: 10px;
-    font-size: 0.84rem;
-    color: #f8fafc !important;
-}
-
-/* --- Ticker LTP Direct CSS Classes --- */
-.ticker-ltp-green {
-    color: #34d399 !important;
-    font-weight: 700 !important;
-}
-.ticker-ltp-red {
-    color: #f87171 !important;
-    font-weight: 700 !important;
-}
-.ticker-change {
-    color: #94a3b8 !important;
-    font-weight: normal !important;
-    font-size: 0.8rem !important;
+/* Streamlit Native Widgets Text */
+div[data-testid="stWidgetLabel"] p, div[role="radiogroup"] label p {
+    color: var(--text-primary) !important;
 }
