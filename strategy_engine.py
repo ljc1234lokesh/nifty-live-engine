@@ -226,3 +226,37 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
         "rr": rr_ratio,
         "fig": fig
     }
+
+def compute_strategy_greeks(display_legs, live_spot, live_vix, dte_days, lot_size):
+    T = max(dte_days, 0.5) / 365.0
+    sigma = max(live_vix / 100.0, 0.10)
+    r = 0.065  # Risk-free rate (6.5%)
+    
+    net_delta = 0.0
+    net_theta_daily = 0.0
+    
+    for leg in display_legs:
+        K = leg["strike"]
+        opt_type = leg["type"]
+        action = leg["action"]  # BUY or SELL
+        mult = 1.0 if action == "BUY" else -1.0
+        
+        if T <= 0:
+            continue
+            
+        d1 = (np.log(live_spot / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
+        
+        if opt_type == "CE":
+            delta = norm.cdf(d1)
+            theta_annual = - (live_spot * norm.pdf(d1) * sigma) / (2 * np.sqrt(T)) - r * K * np.exp(-r * T) * norm.cdf(d2)
+        else:  # PE
+            delta = norm.cdf(d1) - 1.0
+            theta_annual = - (live_spot * norm.pdf(d1) * sigma) / (2 * np.sqrt(T)) + r * K * np.exp(-r * T) * norm.cdf(-d2)
+            
+        theta_daily = theta_annual / 365.0
+        
+        net_delta += delta * mult * lot_size
+        net_theta_daily += theta_daily * mult * lot_size
+        
+    return round(net_delta, 1), round(net_theta_daily, 0)
