@@ -20,6 +20,7 @@ from strategy_engine import (
     compute_payoff_and_chart
 )
 
+# --- PAGE CONFIG ---
 st.set_page_config(
     page_title="NIFTY Institutional Quant Terminal",
     page_icon="📊",
@@ -27,15 +28,18 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- LOAD EXTERNAL BASE CSS ---
 if os.path.exists("style.css"):
     with open("style.css") as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
+# --- SESSION STATE INITIALIZATION ---
 if "saved_strategies" not in st.session_state:
     st.session_state.saved_strategies = load_saved_strategies()
 if "alerted_ids" not in st.session_state:
     st.session_state.alerted_ids = set()
 
+# --- API AUTHENTICATION & MASTER DATA ---
 API_KEY = st.secrets.get("ANGEL_API_KEY", "")
 CLIENT_CODE = st.secrets.get("ANGEL_CLIENT_CODE", "")
 PASSWORD = st.secrets.get("ANGEL_PASSWORD", "")
@@ -54,9 +58,13 @@ active_count = len(st.session_state.saved_strategies)
 api_status_badge = "🟢 LIVE NFO API" if smart_api else "🟡 SIMULATED MODE"
 api_badge_color = "#10b981" if smart_api else "#f59e0b"
 
+# ==============================================================================
+# FIXED TOP COMMAND HEADER (LOCKED TO VIEWPORT TOP)
+# ==============================================================================
 with st.container():
     st.markdown('<div class="sticky-header-target"></div>', unsafe_allow_html=True)
     
+    # --- COMPACT TOP HEADER TITLE ---
     st.markdown(
         f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:6px; padding:6px 12px; margin-bottom:4px;">'
         f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">'
@@ -71,6 +79,7 @@ with st.container():
         unsafe_allow_html=True
     )
 
+    # --- COMPACT TOP MARKET TICKER BAR ---
     ticker_html = (
         '<style>'
         '.ticker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 4px; } '
@@ -106,6 +115,7 @@ with st.container():
     )
     st.markdown(ticker_html, unsafe_allow_html=True)
 
+    # --- COMMAND NAVIGATION & 7s SYNC TOGGLE BAR ---
     nav_col1, nav_col2 = st.columns([3, 1])
     with nav_col1:
         nav_mode = st.radio(
@@ -121,6 +131,9 @@ with st.container():
 if auto_refresh_on:
     st_autorefresh(interval=7 * 1000, key="terminal_fixed_sync_v10")
 
+# ==============================================================================
+# WORKSPACE 1: QUANT TERMINAL (STRATEGY BUILDER & ANALYTICS)
+# ==============================================================================
 if "Quant Terminal" in nav_mode:
     today_dt = ist_now.date()
     valid_exps = sorted([d for d in nfo_df["expiry_dt"].dropna().unique() if d >= today_dt])[:4]
@@ -165,6 +178,7 @@ if "Quant Terminal" in nav_mode:
     pcr_sentiment = "Bullish Support" if live_pcr >= 1.15 else ("Bearish Pressure" if live_pcr <= 0.78 else "Neutral / Range")
     pcr_color = "#10b981" if live_pcr >= 1.0 else "#f59e0b"
 
+    # --- 4 COMPACT INSTITUTIONAL METRIC CARDS ---
     metrics_html = (
         '<style>'
         '.metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 4px; } '
@@ -200,6 +214,7 @@ if "Quant Terminal" in nav_mode:
     )
     st.markdown(metrics_html, unsafe_allow_html=True)
 
+    # --- COMPACT MARKET TIMING BANNER ---
     st.markdown(
         f'<div style="background-color:#111827; border-left:4px solid {badge_color}; border:1px solid #1f2937; border-radius:4px; padding:4px 10px; margin:2px 0 6px 0;">'
         f'<span style="font-weight:800; font-size:0.75rem; color:{badge_color};">{market_badge}</span>'
@@ -208,6 +223,7 @@ if "Quant Terminal" in nav_mode:
         unsafe_allow_html=True
     )
 
+    # --- STRATEGY GENERATION ---
     strat_title, strat_desc, raw_legs = build_strategy_specs(strat_mode_choice, live_spot, atm_strike, live_vix, oi_data)
     exp_nfo = nfo_df[nfo_df["expiry_dt"] == selected_exp_dt]
     lot_size = int(exp_nfo["lotsize_int"].iloc[0]) if not exp_nfo.empty else 65
@@ -240,16 +256,20 @@ if "Quant Terminal" in nav_mode:
             "symbol": kite_sym
         })
 
-    with st.expander("🎛️ IV Crush & DTE Scenario Simulator", expanded=False):
-        sim_c1, sim_c2 = st.columns(2)
-        with sim_c1:
-            sim_vix_shift = st.slider("Volatility Shift (Δ VIX %)", min_value=-10.0, max_value=10.0, value=0.0, step=0.5, key="sim_vix_slider")
-        with sim_c2:
-            sim_dte_override = st.slider("Days to Expiry (DTE) Override", min_value=0, max_value=max(dte_days, 30), value=dte_days, step=1, key="sim_dte_slider")
+    # --- INITIALIZE SCENARIO SIMULATOR STATE ---
+    if "sim_vix_shift" not in st.session_state:
+        st.session_state.sim_vix_shift = 0.0
+    if "sim_dte_override" not in st.session_state:
+        st.session_state.sim_dte_override = dte_days
 
-    payoff_res = compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_size, display_exp, sim_vix_shift=sim_vix_shift, sim_dte_override=sim_dte_override)
+    payoff_res = compute_payoff_and_chart(
+        display_legs, live_spot, live_vix, dte_days, lot_size, display_exp,
+        sim_vix_shift=st.session_state.sim_vix_shift,
+        sim_dte_override=st.session_state.sim_dte_override
+    )
     margin_info = payoff_res["margin_info"]
 
+    # --- RESPONSIVE SIDE-BY-SIDE LAYOUT (Legs Left, Graph Right) ---
     col_legs, col_chart = st.columns([1, 1.3], gap="medium")
     
     with col_legs:
@@ -282,6 +302,7 @@ if "Quant Terminal" in nav_mode:
                 unsafe_allow_html=True
             )
 
+        # --- MARGIN REQUIREMENT CARD ---
         st.markdown(
             f'<div style="background-color:#111827; border:1px solid #374151; border-radius:6px; padding:8px 10px; margin-top:6px; margin-bottom:6px;">'
             f'<div style="font-size:0.72rem; font-weight:700; color:#38bdf8; text-transform:uppercase; margin-bottom:4px;">💰 Margin & Capital Estimator ({margin_info["margin_type"]})</div>'
@@ -310,9 +331,13 @@ if "Quant Terminal" in nav_mode:
             st.session_state.saved_strategies.append(new_entry)
             save_strategies_to_disk(st.session_state.saved_strategies)
             
-            tg_msg = f"🚀 <b>NEW STRATEGY DEPLOYED</b>\n#{new_id}. <b>{strat_title}</b> ({display_exp})\nSaved: {ist_time_str}    Spot: ₹{live_spot:,.2f}\n"
+            tg_msg = f"🚀 <b>NEW STRATEGY DEPLOYED</b>
+#{new_id}. <b>{strat_title}</b> ({display_exp})
+Saved: {ist_time_str}    Spot: ₹{live_spot:,.2f}
+"
             for lg in display_legs:
-                tg_msg += f"• {lg['action']} NIFTY {display_exp} {lg['strike']} {lg['type']} @ ₹{lg['premium']:.2f}\n"
+                tg_msg += f"• {lg['action']} NIFTY {display_exp} {lg['strike']} {lg['type']} @ ₹{lg['premium']:.2f}
+"
             
             send_telegram_alert(tg_msg)
             st.toast(f"🚀 Telegram Notification Sent: New Strategy Deployed!", icon="✅")
@@ -321,14 +346,37 @@ if "Quant Terminal" in nav_mode:
 
     with col_chart:
         st.pyplot(payoff_res["fig"], use_container_width=True)
+        
+        # --- IV CRUSH & DTE SCENARIO SIMULATOR (PLACED UNDER THE GRAPH WITH PERFECT CONTRAST & RESET BUTTON) ---
+        st.markdown("<div style='background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:12px; margin-top:10px;'>", unsafe_allow_html=True)
+        sim_h1, sim_h2 = st.columns([4, 1])
+        with sim_h1:
+            st.markdown("<div style='color:#38bdf8; font-weight:800; font-size:0.85rem; margin-top:4px;'>🎛️ IV Crush & DTE Scenario Simulator</div>", unsafe_allow_html=True)
+        with sim_h2:
+            if st.button("🔄 Reset", use_container_width=True, key="reset_sim_btn"):
+                st.session_state.sim_vix_shift = 0.0
+                st.session_state.sim_dte_override = dte_days
+                st.rerun()
+                
+        sim_c1, sim_c2 = st.columns(2)
+        with sim_c1:
+            st.slider("Volatility Shift (Δ VIX %)", min_value=-10.0, max_value=10.0, step=0.5, key="sim_vix_shift")
+        with sim_c2:
+            st.slider("Days to Expiry (DTE) Override", min_value=0, max_value=max(dte_days, 30), step=1, key="sim_dte_override")
+        st.markdown("</div>", unsafe_allow_html=True)
 
+# ==============================================================================
+# WORKSPACE 2: SAVED LIVE TRACKER & P&L DESK WITH AGGREGATED PORTFOLIO SUMMARY
+# ==============================================================================
 else:
     t_c1, t_c2 = st.columns([3, 1])
     with t_c1:
         st.markdown(f"#### 🛡️ Live Trade Tracker & P&L Desk ({len(st.session_state.saved_strategies)} Active)")
     with t_c2:
         if st.button("🔔 Send Test Alert", use_container_width=True):
-            ok = send_telegram_alert(f"🔔 <b>Quant Terminal Test Alert</b>\nNifty Spot: ₹{live_spot:,.2f}\nTime: {ist_time_str}")
+            ok = send_telegram_alert(f"🔔 <b>Quant Terminal Test Alert</b>
+Nifty Spot: ₹{live_spot:,.2f}
+Time: {ist_time_str}")
             if ok: 
                 st.toast("🔔 Telegram Notification Sent: Test Message!", icon="✅")
                 st.success("✅ Alert Sent!")
@@ -339,6 +387,7 @@ else:
         all_tokens = [lg.get("token", "") for s in st.session_state.saved_strategies for lg in s.get("legs", []) if lg.get("token")]
         tracker_ltps = fetch_batch_ltps(smart_api, all_tokens)
 
+        # --- AGGREGATED PORTFOLIO CALCULATIONS ---
         total_portfolio_pnl = 0.0
         total_portfolio_delta = 0.0
         total_portfolio_theta = 0.0
@@ -373,7 +422,8 @@ else:
                 act_col = "#10b981" if lg["action"] == "BUY" else "#ef4444"
                 sign_p = "+" if leg_pnl_rs >= 0 else ""
                 
-                tg_exit_legs += f"• {lg['action']} NIFTY {strat.get('expiry', '')} {lg['strike']} {lg['type']}: ₹{ent_price:.2f} → ₹{cur_p:.2f} ({sign_p}₹{leg_pnl_rs:,.0f})\n"
+                tg_exit_legs += f"• {lg['action']} NIFTY {strat.get('expiry', '')} {lg['strike']} {lg['type']}: ₹{ent_price:.2f} → ₹{cur_p:.2f} ({sign_p}₹{leg_pnl_rs:,.0f})
+"
 
                 legs_html += (
                     f'<div style="background-color:#111827; border-left:4px solid {act_col}; border:1px solid #1f2937; border-radius:4px; padding:4px 8px; margin-bottom:4px;">'
@@ -402,6 +452,7 @@ else:
                 "tg_exit_legs": tg_exit_legs, "max_p_val": max_p_val, "max_l_val": max_l_val, "payoff_calc": payoff_calc
             })
 
+        # --- RENDER AGGREGATED PORTFOLIO SUMMARY BANNER ---
         port_col_color = "#10b981" if total_portfolio_pnl >= 0 else "#ef4444"
         port_sign = "+" if total_portfolio_pnl >= 0 else ""
         st.markdown(
@@ -417,6 +468,7 @@ else:
             unsafe_allow_html=True
         )
 
+        # --- RENDER INDIVIDUAL STRATEGY CARDS ---
         for item in portfolio_strat_data:
             idx = item["idx"]
             strat = item["strat"]
@@ -436,11 +488,15 @@ else:
             net_col = "#10b981" if net_pnl_rs >= 0 else "#ef4444"
             net_sign = "+" if net_pnl_rs >= 0 else ""
 
+            # --- AUTO STOP-LOSS CHECK ---
             sl_limit = float(strat.get("stop_loss_limit", -2000.0))
             alert_key = f"sl_alerted_{strat_id}"
 
             if net_pnl_rs <= sl_limit and not st.session_state.get(alert_key, False):
-                sl_msg = f"⚠️ <b>EMERGENCY: STOP-LOSS BREACHED!</b>\n#{idx+1} • <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\nCurrent P&L: <b>₹{net_pnl_rs:,.0f}</b> (Trigger: ₹{sl_limit:,.0f})\n👉 Please review or exit position!"
+                sl_msg = f"⚠️ <b>EMERGENCY: STOP-LOSS BREACHED!</b>
+#{idx+1} • <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})
+Current P&L: <b>₹{net_pnl_rs:,.0f}</b> (Trigger: ₹{sl_limit:,.0f})
+👉 Please review or exit position!"
                 send_telegram_alert(sl_msg)
                 st.toast(f"🚨 Stop-Loss Triggered for #{idx+1}!", icon="⚠️")
                 st.session_state[alert_key] = True
@@ -471,12 +527,17 @@ else:
             with c_info:
                 st.markdown(card_html, unsafe_allow_html=True)
                 
+                # --- 3 BUTTONS SIDE BY SIDE ---
                 btn_c1, btn_c2, btn_c3 = st.columns(3)
                 
                 with btn_c1:
                     if st.button("🚪 Exit Trade", key=f"exit_{strat_id}", use_container_width=True):
                         pnl_status = "🟢 PROFIT BOOKED" if net_pnl_rs >= 0 else "🔴 LOSS BOOKED"
-                        tg_msg = f"🚪 <b>TRADE EXITED — {pnl_status}</b>\nSaved: {strat.get('saved_time', '')}\n#{idx+1}. <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\nNet: {net_sign}{total_pnl_pts:+.2f} pts | P&L: <b>{net_sign}₹{net_pnl_rs:,.0f}</b>\n{tg_exit_legs}"
+                        tg_msg = f"🚪 <b>TRADE EXITED — {pnl_status}</b>
+Saved: {strat.get('saved_time', '')}
+#{idx+1}. <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})
+Net: {net_sign}{total_pnl_pts:+.2f} pts | P&L: <b>{net_sign}₹{net_pnl_rs:,.0f}</b>
+{tg_exit_legs}"
                         send_telegram_alert(tg_msg)
                         
                         st.toast(f"🚀 Telegram Notification Sent: Trade Exited! P&L: {net_sign}₹{net_pnl_rs:,.0f}", icon="✅")
@@ -498,6 +559,7 @@ else:
                         save_strategies_to_disk(st.session_state.saved_strategies)
                         st.rerun()
 
+                # --- DYNAMIC EDIT FORM ---
                 if st.session_state.get(f"edit_mode_{strat_id}", False):
                     st.markdown("<div style='background-color:#1e293b; padding:12px; border-radius:6px; margin-top:8px;'>", unsafe_allow_html=True)
                     st.markdown("<div style='color:#f8fafc; font-weight:bold; font-size:0.9rem; margin-bottom:10px;'>Update Strikes, Entry & Stop-Loss</div>", unsafe_allow_html=True)
@@ -506,7 +568,10 @@ else:
                     
                     updated = False
                     new_legs = []
-                    tg_edit_msg = f"✏️ <b>TRADE EDITED</b>\n#{idx+1} • <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\nUpdated: {ist_time_str}    Spot: ₹{live_spot:,.2f}\n"
+                    tg_edit_msg = f"✏️ <b>TRADE EDITED</b>
+#{idx+1} • <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})
+Updated: {ist_time_str}    Spot: ₹{live_spot:,.2f}
+"
                     
                     for l_i, lg in enumerate(strat.get("legs", [])):
                         cur_ent_val = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
@@ -520,11 +585,13 @@ else:
                         if new_st != lg["strike"] or new_pr != cur_ent_val:
                             updated = True
                             
-                        tg_edit_msg += f"• {lg['action']} NIFTY {strat.get('expiry', '')} {new_st} {lg['type']} @ ₹{new_pr:.2f}\n"
+                        tg_edit_msg += f"• {lg['action']} NIFTY {strat.get('expiry', '')} {new_st} {lg['type']} @ ₹{new_pr:.2f}
+"
                     
                     if new_sl_limit != sl_limit:
                         updated = True
-                        tg_edit_msg += f"• <b>New Stop-Loss Limit:</b> ₹{new_sl_limit:,.0f}\n"
+                        tg_edit_msg += f"• <b>New Stop-Loss Limit:</b> ₹{new_sl_limit:,.0f}
+"
 
                     if st.button("💾 Save Changes", key=f"save_{strat_id}", type="primary", use_container_width=True):
                         if updated:
