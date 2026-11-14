@@ -334,7 +334,7 @@ else:
                 st.success("✅ Alert Sent!")
 
     if not st.session_state.saved_strategies:
-        st.info("Abhi koi active strategy nahi hai. '⚡ Quant Terminal' tab se koi strategy deploy karein.")
+        st.info("Abhi koi active strategy nahi hai. '⚡ Quant Terminal' tab से कोई strategy deploy करें.")
     else:
         all_tokens = [lg.get("token", "") for s in st.session_state.saved_strategies for lg in s.get("legs", []) if lg.get("token")]
         tracker_ltps = fetch_batch_ltps(smart_api, all_tokens)
@@ -380,6 +380,16 @@ else:
             net_col = "#10b981" if net_pnl_rs >= 0 else "#ef4444"
             net_sign = "+" if net_pnl_rs >= 0 else ""
 
+            # --- AUTO STOP-LOSS CHECK ---
+            sl_limit = float(strat.get("stop_loss_limit", -2000.0))
+            alert_key = f"sl_alerted_{strat_id}"
+
+            if net_pnl_rs <= sl_limit and not st.session_state.get(alert_key, False):
+                sl_msg = f"⚠️ <b>EMERGENCY: STOP-LOSS BREACHED!</b>\n#{idx+1} • <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})\nCurrent P&L: <b>₹{net_pnl_rs:,.0f}</b> (Trigger: ₹{sl_limit:,.0f})\n👉 Please review or exit position!"
+                send_telegram_alert(sl_msg)
+                st.toast(f"🚨 Stop-Loss Triggered for #{idx+1}!", icon="⚠️")
+                st.session_state[alert_key] = True  # Prevent spamming
+
             status_txt = f"🟡 MONITOR CLOSELY — Drift: {spot_drift:+.1f} pts." if abs(spot_drift) >= 100 else f"🟢 SAFE ZONE — Drift: {spot_drift:+.1f} pts."
             status_bg = "rgba(234, 179, 8, 0.15)" if abs(spot_drift) >= 100 else "rgba(16, 185, 129, 0.15)"
             status_col = "#f59e0b" if abs(spot_drift) >= 100 else "#10b981"
@@ -390,7 +400,7 @@ else:
             card_html = (
                 f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px; margin-bottom:8px;">'
                 f'<div style="font-size:0.9rem; font-weight:800; color:#f8fafc;">#{idx+1} • {strat.get("name", "Strategy")} <span style="color:#38bdf8;">({strat.get("expiry", "")})</span></div>'
-                f'<div style="font-size:0.7rem; color:#94a3b8; margin-bottom:4px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | Live: ₹{live_spot:,.2f}</div>'
+                f'<div style="font-size:0.7rem; color:#94a3b8; margin-bottom:4px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | Live: ₹{live_spot:,.2f} | SL: ₹{sl_limit:,.0f}</div>'
                 f'<div style="display:flex; gap:12px; flex-wrap:wrap; font-size:0.75rem; font-weight:700; margin-bottom:4px;">'
                 f'<span style="color:#10b981;">Max Profit: ₹{max_p_clean:,}</span>'
                 f'<span style="color:#ef4444;">Max Risk: ₹{max_l_clean:,}</span>'
@@ -435,10 +445,13 @@ else:
                         save_strategies_to_disk(st.session_state.saved_strategies)
                         st.rerun()
 
-                # --- DYNAMIC EDIT FORM ---
+                # --- DYNAMIC EDIT FORM (Now includes Stop-Loss Limit configuration) ---
                 if st.session_state.get(f"edit_mode_{strat_id}", False):
                     st.markdown("<div style='background-color:#1e293b; padding:12px; border-radius:6px; margin-top:8px;'>", unsafe_allow_html=True)
-                    st.markdown("<div style='color:#f8fafc; font-weight:bold; font-size:0.9rem; margin-bottom:10px;'>Update Strikes & Entry Prices</div>", unsafe_allow_html=True)
+                    st.markdown("<div style='color:#f8fafc; font-weight:bold; font-size:0.9rem; margin-bottom:10px;'>Update Strikes, Entry & Stop-Loss</div>", unsafe_allow_html=True)
+                    
+                    # Stop Loss Input Field
+                    new_sl_limit = st.number_input("Stop Loss Limit (₹)", value=sl_limit, step=100.0, key=f"sl_input_{strat_id}")
                     
                     updated = False
                     new_legs = []
@@ -458,9 +471,16 @@ else:
                             
                         tg_edit_msg += f"• {lg['action']} NIFTY {strat.get('expiry', '')} {new_st} {lg['type']} @ ₹{new_pr:.2f}\n"
                     
+                    if new_sl_limit != sl_limit:
+                        updated = True
+                        tg_edit_msg += f"• <b>New Stop-Loss Limit:</b> ₹{new_sl_limit:,.0f}\n"
+
                     if st.button("💾 Save Changes", key=f"save_{strat_id}", type="primary", use_container_width=True):
                         if updated:
                             st.session_state.saved_strategies[idx]["legs"] = new_legs
+                            st.session_state.saved_strategies[idx]["stop_loss_limit"] = new_sl_limit
+                            # Reset alert flag if SL limit is updated so it can trigger again if needed
+                            st.session_state[alert_key] = False 
                             save_strategies_to_disk(st.session_state.saved_strategies)
                             
                             send_telegram_alert(tg_edit_msg)
@@ -474,3 +494,5 @@ else:
             with c_graph:
                 saved_payoff = compute_payoff_and_chart(strat_display_legs, ent_spot, live_vix, 1, lot_q, strat.get("expiry", ""))
                 st.pyplot(saved_payoff["fig"], use_container_width=True)
+            
+            st.markdown("<hr style='border-color: #1f2937; margin: 15px 0;'>", unsafe_allow_html=True)
