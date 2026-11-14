@@ -58,58 +58,64 @@ active_count = len(st.session_state.saved_strategies)
 api_badge_cls = "col-green" if smart_api else "col-amber"
 api_status_badge = "🟢 LIVE NFO API" if smart_api else "🟡 SIMULATED MODE"
 
-# --- TOP HEADER BAR ---
-st.markdown(
-    f'<div class="top-bar" style="border:1px solid; border-radius:8px; padding:10px 14px; margin-bottom:8px;">'
-    f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">'
-    f'<div>'
-    f'<div class="txt-main" style="font-size:1.05rem; font-weight:800; letter-spacing:0.4px;">📊 NIFTY INSTITUTIONAL QUANT TERMINAL</div>'
-    f'<div class="col-blue" style="font-size:0.72rem; font-weight:600;">Advanced Delta & OI-Synced Options Analytics & Live Tracker</div>'
-    f'</div>'
-    f'<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">'
-    f'<span class="txt-main" style="background:rgba(100,116,139,0.18); padding:3px 8px; border-radius:5px; font-size:0.72rem; font-weight:600;">🕒 {ist_time_str} | Active: {active_count}</span>'
-    f'<span class="{api_badge_cls}" style="background:rgba(100,116,139,0.18); padding:3px 8px; border-radius:5px; font-size:0.72rem;">{api_status_badge}</span>'
-    f'</div></div></div>',
-    unsafe_allow_html=True
-)
+# ==============================================================================
+# FROZEN TOP COMMAND HEADER (DOES NOT SCROLL)
+# ==============================================================================
+with st.container():
+    st.markdown('<div class="sticky-marker" style="display:none;"></div>', unsafe_allow_html=True)
 
-# --- TOP MARKET TICKER BAR ---
-t1, t2, t3 = st.columns(3)
-for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty"), (t3, "SENSEX", "sensex")]:
-    with col:
-        d = market_data[key]
-        ltp = d["ltp"]
-        close = d["close"] if d["close"] > 0 else ltp
-        diff = ltp - close
-        pct = (diff / close) * 100 if close > 0 else 0.0
-        css_class = "ticker-ltp-green" if diff >= 0 else "ticker-ltp-red"
-        sign_str = "+" if diff >= 0 else ""
-
-        st.markdown(
-            f'<div class="index-ticker" style="border:1px solid; border-radius:6px; padding:6px 8px; text-align:center; margin-bottom:4px;">'
-            f'<div class="txt-main" style="font-weight:700; font-size:0.85rem;">'
-            f'{name}: <span class="{css_class}">₹{ltp:,.2f}</span> '
-            f'<span class="ticker-change">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>'
-            f'</div>'
-            f'<div class="txt-muted" style="font-size:0.65rem; margin-top:2px;">O: {d["open"]:,.1f} | H: {d["high"]:,.1f} | L: {d["low"]:,.1f} | C: {close:,.1f}</div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-# --- COMMAND NAVIGATION, LIGHT/NIGHT THEME & 7s SYNC BAR ---
-nav_col1, nav_col2, nav_col3 = st.columns([2.4, 0.8, 0.8])
-with nav_col1:
-    nav_mode = st.radio(
-        "Workspace",
-        ["⚡ Quant Terminal", "🛡️ Saved Live Tracker"],
-        horizontal=True,
-        label_visibility="collapsed",
-        key="main_nav_mode"
+    # 1. Main Title Header
+    st.markdown(
+        f'<div class="top-bar" style="border:1px solid; border-radius:8px; padding:10px 14px; margin-bottom:6px;">'
+        f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">'
+        f'<div>'
+        f'<div class="txt-main" style="font-size:1.05rem; font-weight:800; letter-spacing:0.4px;">📊 NIFTY INSTITUTIONAL QUANT TERMINAL</div>'
+        f'<div class="col-blue" style="font-size:0.72rem; font-weight:600;">Advanced Delta & OI-Synced Options Analytics & Live Tracker</div>'
+        f'</div>'
+        f'<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">'
+        f'<span class="txt-main" style="background:rgba(100,116,139,0.18); padding:3px 8px; border-radius:5px; font-size:0.72rem; font-weight:600;">🕒 {ist_time_str} | Active: {active_count}</span>'
+        f'<span class="{api_badge_cls}" style="background:rgba(100,116,139,0.18); padding:3px 8px; border-radius:5px; font-size:0.72rem;">{api_status_badge}</span>'
+        f'</div></div></div>',
+        unsafe_allow_html=True
     )
-with nav_col2:
-    light_mode = st.toggle("☀️ Light", value=False, key="top_theme_toggle")
-with nav_col3:
-    auto_refresh_on = st.toggle("Sync (7s)", value=True, key="top_sync_toggle")
+
+    # 2. Index Ticker Bar (NIFTY 50, BANKNIFTY, SENSEX)
+    t1, t2, t3 = st.columns(3)
+    for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty"), (t3, "SENSEX", "sensex")]:
+        with col:
+            d = market_data[key]
+            ltp = d["ltp"]
+            close = d["close"] if d["close"] > 0 else ltp
+            diff = ltp - close
+            pct = (diff / close) * 100 if close > 0 else 0.0
+            css_class = "ticker-ltp-green" if diff >= 0 else "ticker-ltp-red"
+            sign_str = "+" if diff >= 0 else ""
+
+            st.markdown(
+                f'<div class="index-ticker" style="border:1px solid; border-radius:6px; padding:6px 8px; text-align:center; margin-bottom:4px;">'
+                f'<div class="txt-main" style="font-weight:700; font-size:0.85rem;">'
+                f'{name}: <span class="{css_class}">₹{ltp:,.2f}</span> '
+                f'<span class="ticker-change">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>'
+                f'</div>'
+                f'<div class="txt-muted" style="font-size:0.65rem; margin-top:2px;">O: {d["open"]:,.1f} | H: {d["high"]:,.1f} | L: {d["low"]:,.1f} | C: {close:,.1f}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+    # 3. Navigation, Light Mode & 7s Sync Toggles
+    nav_col1, nav_col2, nav_col3 = st.columns([2.4, 0.8, 0.8])
+    with nav_col1:
+        nav_mode = st.radio(
+            "Workspace",
+            ["⚡ Quant Terminal", "🛡️ Saved Live Tracker"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="main_nav_mode"
+        )
+    with nav_col2:
+        light_mode = st.toggle("☀️ Light", value=False, key="top_theme_toggle")
+    with nav_col3:
+        auto_refresh_on = st.toggle("Sync (7s)", value=True, key="top_sync_toggle")
 
 # --- LIGHT MODE VARIABLE OVERRIDE (PRESERVES ALL SEMANTIC COLORS) ---
 if light_mode:
@@ -134,10 +140,7 @@ if light_mode:
     """, unsafe_allow_html=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=7 * 1000, key="terminal_fixed_sync_v12")
-
-hr_color = "#cbd5e1" if light_mode else "#1f2937"
-st.markdown(f"<hr style='margin: 4px 0 10px 0; border-color: {hr_color};'>", unsafe_allow_html=True)
+    st_autorefresh(interval=7 * 1000, key="terminal_fixed_sync_v13")
 
 # ==============================================================================
 # WORKSPACE 1: QUANT TERMINAL (STRATEGY BUILDER & ANALYTICS)
