@@ -374,7 +374,7 @@ else:
             max_l_clean = round(float(strat.get("max_loss", 0)))
 
             card_html = (
-                f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px;">'
+                f'<div style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px; margin-bottom:8px;">'
                 f'<div style="font-size:0.9rem; font-weight:800; color:#f8fafc;">#{idx+1} • {strat.get("name", "Strategy")} <span style="color:#38bdf8;">({strat.get("expiry", "")})</span></div>'
                 f'<div style="font-size:0.7rem; color:#94a3b8; margin-bottom:4px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | Live: ₹{live_spot:,.2f}</div>'
                 f'<div style="display:flex; gap:12px; flex-wrap:wrap; font-size:0.75rem; font-weight:700; margin-bottom:4px;">'
@@ -392,6 +392,13 @@ else:
             
             with c_info:
                 st.markdown(card_html, unsafe_allow_html=True)
+                
+                # --- EXIT BUTTON MOVED UP & MADE PRIMARY (RED) ---
+                if st.button(f"🚪 Delete / Exit Trade (#{idx+1})", key=f"exit_{strat.get('id', idx)}", use_container_width=True, type="primary"):
+                    st.session_state.saved_strategies.pop(idx)
+                    save_strategies_to_disk(st.session_state.saved_strategies)
+                    st.rerun()
+
                 with st.expander(f"✏️ Edit Strikes/Entry (#{idx+1})"):
                     updated = False
                     for l_i, lg in enumerate(strat.get("legs", [])):
@@ -408,11 +415,6 @@ else:
                     if updated:
                         save_strategies_to_disk(st.session_state.saved_strategies)
                         st.rerun()
-
-                if st.button(f"🚪 Exit Trade (#{idx+1})", key=f"exit_{strat.get('id', idx)}", use_container_width=True):
-                    st.session_state.saved_strategies.pop(idx)
-                    save_strategies_to_disk(st.session_state.saved_strategies)
-                    st.rerun()
             
             with c_graph:
                 saved_payoff = compute_payoff_and_chart(strat_display_legs, ent_spot, live_vix, 1, lot_q, strat.get("expiry", ""))
