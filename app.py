@@ -332,23 +332,26 @@ else:
     if not st.session_state.saved_strategies:
         st.info("Abhi koi active strategy nahi hai. '⚡ Quant Terminal' tab se koi strategy deploy karein.")
     else:
-        all_tokens = [lg["token"] for s in st.session_state.saved_strategies for lg in s["legs"] if lg.get("token")]
+        all_tokens = [lg.get("token", "") for s in st.session_state.saved_strategies for lg in s.get("legs", []) if lg.get("token")]
         tracker_ltps = fetch_batch_ltps(smart_api, all_tokens)
 
         for idx, strat in enumerate(st.session_state.saved_strategies):
-            lot_q = strat.get("lot_size", 65)
+            lot_q = strat.get("lot_size", strat.get("lot", 65))
             ent_spot = strat.get("entry_spot", live_spot)
             spot_drift = live_spot - ent_spot
             total_pnl_pts = 0.0
 
             legs_html = ""
-            for l_i, lg in enumerate(strat["legs"], 1):
+            for l_i, lg in enumerate(strat.get("legs", []), 1):
                 tok = lg.get("token", "")
-                cur_p = tracker_ltps.get(tok, lg["entry_price"])
+                # Backward compatible key lookup for old & new saved strategies
+                ent_price = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
+                
+                cur_p = tracker_ltps.get(tok, ent_price)
                 if cur_p <= 0:
-                    cur_p = lg["entry_price"]
+                    cur_p = ent_price
 
-                diff_p = (cur_p - lg["entry_price"]) if lg["action"] == "BUY" else (lg["entry_price"] - cur_p)
+                diff_p = (cur_p - ent_price) if lg["action"] == "BUY" else (ent_price - cur_p)
                 total_pnl_pts += diff_p
                 leg_pnl_rs = diff_p * lot_q
                 pnl_col = "#10b981" if leg_pnl_rs >= 0 else "#ef4444"
@@ -358,10 +361,10 @@ else:
                 legs_html += f"""
                 <div class="leg-card" style="background-color:#111827; border-left:4px solid {act_col}; border:1px solid #1f2937; border-radius:6px; padding:8px 10px; margin-bottom:6px;">
                     <div style="font-size:0.8rem; font-weight:700;">
-                        Leg {l_i}: <span style="color:{act_col};">{lg['action']}</span> NIFTY {strat['expiry']} {lg['strike']} {lg['type']}
+                        Leg {l_i}: <span style="color:{act_col};">{lg['action']}</span> NIFTY {strat.get('expiry', '')} {lg['strike']} {lg['type']}
                     </div>
                     <div style="font-size:0.78rem; margin-top:2px;">
-                        Entry: ₹{lg['entry_price']:.2f} → Live: <b>₹{cur_p:.2f}</b> | <span style="color:{pnl_col}; font-weight:800;">{sign_p}₹{leg_pnl_rs:,.0f}</span>
+                        Entry: ₹{ent_price:.2f} → Live: <b>₹{cur_p:.2f}</b> | <span style="color:{pnl_col}; font-weight:800;">{sign_p}₹{leg_pnl_rs:,.0f}</span>
                     </div>
                 </div>
                 """
@@ -381,11 +384,11 @@ else:
 
             st.markdown(f"""
             <div class="tracker-card" style="background-color:#111827; border:1px solid #1f2937; border-radius:10px; padding:12px; margin-top:10px;">
-                <div style="font-size:0.95rem; font-weight:800;">#{idx+1} • {strat['name']} <span style="color:#38bdf8;">({strat['expiry']})</span></div>
-                <div style="font-size:0.72rem; color:#94a3b8; margin-bottom:6px;">Saved: {strat['saved_time']} | Entry Spot: ₹{ent_spot:,.2f} | Live Spot: ₹{live_spot:,.2f} ({spot_drift:+.1f})</div>
+                <div style="font-size:0.95rem; font-weight:800;">#{idx+1} • {strat.get('name', 'Strategy')} <span style="color:#38bdf8;">({strat.get('expiry', '')})</span></div>
+                <div style="font-size:0.72rem; color:#94a3b8; margin-bottom:6px;">Saved: {strat.get('saved_time', '')} | Entry Spot: ₹{ent_spot:,.2f} | Live Spot: ₹{live_spot:,.2f} ({spot_drift:+.1f})</div>
                 <div style="display:flex; gap:14px; flex-wrap:wrap; font-size:0.78rem; font-weight:700; margin-bottom:6px;">
-                    <span style="color:#10b981;">Max Profit: ₹{strat['max_profit']:,}</span>
-                    <span style="color:#ef4444;">Max Risk: ₹{strat['max_loss']:,}</span>
+                    <span style="color:#10b981;">Max Profit: ₹{strat.get('max_profit', 0):,}</span>
+                    <span style="color:#ef4444;">Max Risk: ₹{strat.get('max_loss', 0):,}</span>
                     <span>Lot Qty: {lot_q}</span>
                 </div>
                 <div style="font-size:1.05rem; font-weight:800; margin-bottom:10px;">
@@ -400,13 +403,14 @@ else:
 
             with st.expander(f"✏️ Edit Strikes & Entry Prices (#{idx+1})"):
                 updated = False
-                for l_i, lg in enumerate(strat["legs"]):
+                for l_i, lg in enumerate(strat.get("legs", [])):
+                    cur_ent_val = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
                     c1, c2 = st.columns(2)
                     with c1:
-                        new_st = st.number_input(f"Leg {l_i+1} Strike", value=int(lg["strike"]), step=50, key=f"st_{strat['id']}_{l_i}")
+                        new_st = st.number_input(f"Leg {l_i+1} Strike", value=int(lg["strike"]), step=50, key=f"st_{strat.get('id', idx)}_{l_i}")
                     with c2:
-                        new_pr = st.number_input(f"Leg {l_i+1} Entry ₹", value=float(lg["entry_price"]), step=0.5, key=f"pr_{strat['id']}_{l_i}")
-                    if new_st != lg["strike"] or new_pr != lg["entry_price"]:
+                        new_pr = st.number_input(f"Leg {l_i+1} Entry ₹", value=cur_ent_val, step=0.5, key=f"pr_{strat.get('id', idx)}_{l_i}")
+                    if new_st != lg["strike"] or new_pr != cur_ent_val:
                         lg["strike"] = new_st
                         lg["entry_price"] = new_pr
                         updated = True
@@ -414,7 +418,7 @@ else:
                     save_strategies_to_disk(st.session_state.saved_strategies)
                     st.rerun()
 
-            if st.button(f"🚪 Exit Trade (#{idx+1})", key=f"exit_{strat['id']}", use_container_width=True):
+            if st.button(f"🚪 Exit Trade (#{idx+1})", key=f"exit_{strat.get('id', idx)}", use_container_width=True):
                 st.session_state.saved_strategies.pop(idx)
                 save_strategies_to_disk(st.session_state.saved_strategies)
                 st.rerun()
