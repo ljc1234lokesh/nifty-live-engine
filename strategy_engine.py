@@ -195,11 +195,10 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
     pop_percent = float((norm.cdf((upper_be - live_spot) / stdev) - norm.cdf((lower_be - live_spot) / stdev)) * 100)
     rr_ratio = max_loss_lot / max(max_profit_lot, 1)
 
-    # --- MATPLOTLIB GRAPH GENERATION ---
-    fig, ax = plt.subplots(figsize=(7, 4), facecolor="#111827")
+    # --- MATPLOTLIB GRAPH GENERATION (COMPACT HEIGHT) ---
+    fig, ax = plt.subplots(figsize=(7, 3.2), facecolor="#111827") # Height reduced from 4 to 3.2
     ax.set_facecolor("#111827")
 
-    # Profit/Loss Fill Areas
     ax.fill_between(spot_range, pnl_exp_lot, 0, where=(pnl_exp_lot >= 0), facecolor="#10b981", alpha=0.3)
     ax.fill_between(spot_range, pnl_exp_lot, 0, where=(pnl_exp_lot < 0), facecolor="#ef4444", alpha=0.3)
 
@@ -209,15 +208,15 @@ def compute_payoff_and_chart(display_legs, live_spot, live_vix, dte_days, lot_si
     ax.axhline(0, color="#475569", linestyle="--", linewidth=1.5)
     ax.axvline(live_spot, color="#38bdf8", linestyle=":", linewidth=2, label=f"Spot: {live_spot:.0f}")
 
-    ax.set_title(f"Expiry Payoff ({display_exp}) | BE: {lower_be:.0f} - {upper_be:.0f}", color="#f8fafc", fontsize=11, pad=12)
-    ax.set_xlabel("NIFTY Spot Price", color="#94a3b8", fontsize=9)
-    ax.set_ylabel(f"P&L (₹ / {lot_size} Qty)", color="#94a3b8", fontsize=9)
+    ax.set_title(f"Expiry Payoff ({display_exp}) | BE: {lower_be:.0f} - {upper_be:.0f}", color="#f8fafc", fontsize=10, pad=8)
+    ax.set_xlabel("NIFTY Spot Price", color="#94a3b8", fontsize=8)
+    ax.set_ylabel(f"P&L (₹ / {lot_size} Qty)", color="#94a3b8", fontsize=8)
 
-    ax.tick_params(colors="#94a3b8", labelsize=9)
+    ax.tick_params(colors="#94a3b8", labelsize=8)
     for spine in ax.spines.values():
         spine.set_edgecolor("#1f2937")
 
-    fig.tight_layout()
+    fig.tight_layout(pad=0.5)
 
     return {
         "net_credit": net_credit,
