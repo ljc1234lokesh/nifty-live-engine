@@ -5,9 +5,27 @@
     height: 0px !important;
 }
 
+/* --- ULTRA-COMPACT FIXED TOP COMMAND BAR --- */
+[data-testid="stAppViewBlockContainer"] > div:first-child {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 99999 !important;
+    background-color: #0b0f19 !important;
+    padding: 10px 20px 4px 20px !important; /* Reduced Padding */
+    border-bottom: 1px solid #1f2937 !important;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Push dashboard down slightly less because header is slimmer */
+[data-testid="stAppViewBlockContainer"] > div:nth-child(n+2) {
+    margin-top: 135px !important; 
+}
+
 .block-container, [data-testid="stAppViewBlockContainer"] {
     padding-top: 0rem !important;
-    padding-bottom: 1.5rem !important;
+    padding-bottom: 1rem !important;
 }
 
 .stApp, [data-testid="stAppViewContainer"] {
@@ -15,29 +33,23 @@
     color: #f8fafc !important;
 }
 
-/* --- BULLETPROOF FREEZE (STICKY HEADER) --- */
-/* यह सिर्फ उसी कंटेनर को लॉक करेगा जिसमें हमारा हेडर है, पूरे पेज को नहीं */
-div[data-testid="stVerticalBlock"]:has(.sticky-header-target):not(:has(div[data-testid="stVerticalBlock"])) {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 99999 !important;
-    background-color: #0b0f19 !important;
-    padding-top: 15px !important;
-    padding-bottom: 10px !important;
-    border-bottom: 1px solid #1f2937 !important;
-    margin-top: -15px !important;
-}
+/* --- Ticker LTP Direct CSS Classes --- */
+.ticker-ltp-green { color: #34d399 !important; font-weight: 700 !important; }
+.ticker-ltp-red { color: #f87171 !important; font-weight: 700 !important; }
+.ticker-change { color: #94a3b8 !important; font-weight: normal !important; font-size: 0.75rem !important; }
 
 div[data-testid="stWidgetLabel"] p, div[role="radiogroup"] label p {
     color: #f8fafc !important;
+    margin-bottom: 2px !important;
 }
 
-/* --- BUTTON VISIBILITY & HOVER FIX --- */
+/* --- BUTTON FIX --- */
 div.stButton > button {
     background-color: #1e293b !important;
     color: #f8fafc !important;
     border: 1px solid #334155 !important;
-    transition: all 0.2s ease-in-out !important;
+    padding: 2px 10px !important; /* Slimmer buttons */
+    min-height: 32px !important;
 }
 div.stButton > button:hover {
     background-color: #0f172a !important;
