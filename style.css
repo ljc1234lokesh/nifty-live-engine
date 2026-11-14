@@ -5,24 +5,6 @@
     height: 0px !important;
 }
 
-/* --- BULLETPROOF FIXED TOP COMMAND BAR --- */
-[data-testid="stAppViewBlockContainer"] > div:first-child {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 99999 !important;
-    background-color: #0b0f19 !important;
-    padding: 15px 30px 10px 30px !important;
-    border-bottom: 1px solid #1f2937 !important;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6) !important;
-}
-
-/* Push the rest of the dashboard down so it doesn't hide under the fixed header */
-[data-testid="stAppViewBlockContainer"] > div:nth-child(n+2) {
-    margin-top: 200px !important;
-}
-
 .block-container, [data-testid="stAppViewBlockContainer"] {
     padding-top: 0rem !important;
     padding-bottom: 1.5rem !important;
@@ -33,10 +15,18 @@
     color: #f8fafc !important;
 }
 
-/* --- Ticker LTP Direct CSS Classes --- */
-.ticker-ltp-green { color: #34d399 !important; font-weight: 700 !important; }
-.ticker-ltp-red { color: #f87171 !important; font-weight: 700 !important; }
-.ticker-change { color: #94a3b8 !important; font-weight: normal !important; font-size: 0.8rem !important; }
+/* --- BULLETPROOF FREEZE (STICKY HEADER) --- */
+/* यह सिर्फ उसी कंटेनर को लॉक करेगा जिसमें हमारा हेडर है, पूरे पेज को नहीं */
+div[data-testid="stVerticalBlock"]:has(.sticky-header-target):not(:has(div[data-testid="stVerticalBlock"])) {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 99999 !important;
+    background-color: #0b0f19 !important;
+    padding-top: 15px !important;
+    padding-bottom: 10px !important;
+    border-bottom: 1px solid #1f2937 !important;
+    margin-top: -15px !important;
+}
 
 div[data-testid="stWidgetLabel"] p, div[role="radiogroup"] label p {
     color: #f8fafc !important;
