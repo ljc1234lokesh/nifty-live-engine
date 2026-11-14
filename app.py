@@ -1,7 +1,6 @@
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 import datetime
-import pandas as pd
 import os
 
 from api_service import (
@@ -56,25 +55,25 @@ atm_strike = int(round(live_spot / 50.0) * 50)
 
 ist_now, ist_time_str, market_badge, timing_advice, badge_color = get_ist_clock_status()
 active_count = len(st.session_state.saved_strategies)
+api_badge_cls = "col-green" if smart_api else "col-amber"
 api_status_badge = "🟢 LIVE NFO API" if smart_api else "🟡 SIMULATED MODE"
 
 # --- TOP HEADER BAR ---
-st.markdown(f"""
-<div class="top-bar" style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px 14px; margin-bottom:8px;">
-    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
-        <div>
-            <div style="font-size:1.05rem; font-weight:800; letter-spacing:0.4px; color:#f8fafc;">📊 NIFTY INSTITUTIONAL QUANT TERMINAL</div>
-            <div style="font-size:0.72rem; color:#38bdf8;">Advanced Delta & OI-Synced Options Analytics & Live Tracker</div>
-        </div>
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-            <span style="background:#1e293b; color:#e2e8f0; padding:3px 8px; border-radius:5px; font-size:0.72rem; font-weight:600;">🕒 {ist_time_str} | Active: {active_count}</span>
-            <span style="background:#1e293b; color:#10b981; padding:3px 8px; border-radius:5px; font-size:0.72rem; font-weight:600;">{api_status_badge}</span>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    f'<div class="top-bar" style="border:1px solid; border-radius:8px; padding:10px 14px; margin-bottom:8px;">'
+    f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">'
+    f'<div>'
+    f'<div class="txt-main" style="font-size:1.05rem; font-weight:800; letter-spacing:0.4px;">📊 NIFTY INSTITUTIONAL QUANT TERMINAL</div>'
+    f'<div class="col-blue" style="font-size:0.72rem; font-weight:600;">Advanced Delta & OI-Synced Options Analytics & Live Tracker</div>'
+    f'</div>'
+    f'<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">'
+    f'<span class="txt-main" style="background:rgba(100,116,139,0.18); padding:3px 8px; border-radius:5px; font-size:0.72rem; font-weight:600;">🕒 {ist_time_str} | Active: {active_count}</span>'
+    f'<span class="{api_badge_cls}" style="background:rgba(100,116,139,0.18); padding:3px 8px; border-radius:5px; font-size:0.72rem;">{api_status_badge}</span>'
+    f'</div></div></div>',
+    unsafe_allow_html=True
+)
 
-# --- TOP MARKET TICKER BAR (Controlled via CSS Classes) ---
+# --- TOP MARKET TICKER BAR ---
 t1, t2, t3 = st.columns(3)
 for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty"), (t3, "SENSEX", "sensex")]:
     with col:
@@ -86,15 +85,16 @@ for col, name, key in [(t1, "NIFTY 50", "nifty"), (t2, "BANKNIFTY", "banknifty")
         css_class = "ticker-ltp-green" if diff >= 0 else "ticker-ltp-red"
         sign_str = "+" if diff >= 0 else ""
 
-        st.markdown(f"""
-        <div class="index-ticker" style="background-color: #111827; border: 1px solid #1f2937; border-radius: 6px; padding: 6px 8px; text-align: center; margin-bottom: 4px;">
-            <div style="font-weight: 700; font-size: 0.85rem; color: #f8fafc;">
-                {name}: <span class="{css_class}">₹{ltp:,.2f}</span> 
-                <span class="ticker-change">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>
-            </div>
-            <div style="font-size: 0.65rem; color: #94a3b8; margin-top: 2px;">O: {d['open']:,.1f} | H: {d['high']:,.1f} | L: {d['low']:,.1f} | C: {close:,.1f}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="index-ticker" style="border:1px solid; border-radius:6px; padding:6px 8px; text-align:center; margin-bottom:4px;">'
+            f'<div class="txt-main" style="font-weight:700; font-size:0.85rem;">'
+            f'{name}: <span class="{css_class}">₹{ltp:,.2f}</span> '
+            f'<span class="ticker-change">{sign_str}{diff:,.2f} ({sign_str}{pct:.2f}%)</span>'
+            f'</div>'
+            f'<div class="txt-muted" style="font-size:0.65rem; margin-top:2px;">O: {d["open"]:,.1f} | H: {d["high"]:,.1f} | L: {d["low"]:,.1f} | C: {close:,.1f}</div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
 
 # --- COMMAND NAVIGATION, LIGHT/NIGHT THEME & 7s SYNC BAR ---
 nav_col1, nav_col2, nav_col3 = st.columns([2.4, 0.8, 0.8])
@@ -111,32 +111,30 @@ with nav_col2:
 with nav_col3:
     auto_refresh_on = st.toggle("Sync (7s)", value=True, key="top_sync_toggle")
 
-# --- LIGHT MODE OVERRIDE CSS ---
+# --- LIGHT MODE VARIABLE OVERRIDE (PRESERVES ALL SEMANTIC COLORS) ---
 if light_mode:
     st.markdown("""
     <style>
-        .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-            background-color: #f1f5f9 !important;
-            color: #0f172a !important;
+        :root {
+            --bg-app: #f1f5f9;
+            --bg-card: #ffffff;
+            --border-card: #cbd5e1;
+            --text-primary: #0f172a;
+            --text-muted: #475569;
         }
-        div[style*="background-color: #111827"], div[style*="background-color:#111827"],
-        .metric-card, .index-ticker, .top-bar, .leg-card, .tracker-card {
-            background-color: #ffffff !important;
-            border-color: #cbd5e1 !important;
-            color: #0f172a !important;
+        .metric-card, .index-ticker, .top-bar, .leg-card, .tracker-card, .timing-banner {
             box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
         }
-        .stMarkdown, p, span, label, h1, h2, h3, h4, div[role="radiogroup"] label {
-            color: #0f172a !important;
-        }
-        .ticker-ltp-green { color: #059669 !important; font-weight: 700 !important; }
-        .ticker-ltp-red { color: #dc2626 !important; font-weight: 700 !important; }
-        .ticker-change { color: #475569 !important; }
+        .col-green, .ticker-ltp-green { color: #059669 !important; }
+        .col-red, .ticker-ltp-red { color: #dc2626 !important; }
+        .col-blue { color: #0284c7 !important; }
+        .col-purple { color: #7e22ce !important; }
+        .col-amber { color: #d97706 !important; }
     </style>
     """, unsafe_allow_html=True)
 
 if auto_refresh_on:
-    st_autorefresh(interval=7 * 1000, key="terminal_fixed_sync_v11")
+    st_autorefresh(interval=7 * 1000, key="terminal_fixed_sync_v12")
 
 hr_color = "#cbd5e1" if light_mode else "#1f2937"
 st.markdown(f"<hr style='margin: 4px 0 10px 0; border-color: {hr_color};'>", unsafe_allow_html=True)
@@ -182,33 +180,36 @@ if "Quant Terminal" in nav_mode:
     put_wall = oi_data["put_wall"]
 
     pcr_sentiment = "Bullish Support" if live_pcr >= 1.15 else ("Bearish Pressure" if live_pcr <= 0.78 else "Neutral / Range")
+    pcr_cls = "col-green" if live_pcr >= 1.0 else "col-amber"
 
     # --- 5 INSTITUTIONAL METRIC CARDS ---
     m1, m2, m3, m4, m5 = st.columns(5)
     metrics_info = [
-        (m1, "INDIA VIX", f"{live_vix:.2f}", "Volatility", "#38bdf8"),
-        (m2, "LIVE PCR (🟢)", f"{live_pcr:.2f}", pcr_sentiment, "#10b981" if live_pcr >= 1.0 else "#f59e0b"),
-        (m3, "MAX PAIN", f"₹{live_max_pain}", "Expiry Magnet", "#a855f7"),
-        (m4, "PUT SUPPORT", f"₹{put_wall}", f"OI: {oi_data['put_wall_oi']:,}", "#10b981"),
-        (m5, "CALL RESISTANCE", f"₹{call_wall}", f"OI: {oi_data['call_wall_oi']:,}", "#ef4444"),
+        (m1, "INDIA VIX", f"{live_vix:.2f}", "Volatility", "col-blue"),
+        (m2, "LIVE PCR (🟢)", f"{live_pcr:.2f}", pcr_sentiment, pcr_cls),
+        (m3, "MAX PAIN", f"₹{live_max_pain}", "Expiry Magnet", "col-purple"),
+        (m4, "PUT SUPPORT", f"₹{put_wall}", f"OI: {oi_data['put_wall_oi']:,}", "col-green"),
+        (m5, "CALL RESISTANCE", f"₹{call_wall}", f"OI: {oi_data['call_wall_oi']:,}", "col-red"),
     ]
-    for col, title, val, sub, accent in metrics_info:
+    for col, title, val, sub, cls_name in metrics_info:
         with col:
-            st.markdown(f"""
-            <div class="metric-card" style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:10px 12px; margin-bottom:6px;">
-                <div style="font-size:0.68rem; font-weight:700; color:#94a3b8; letter-spacing:0.5px;">{title}</div>
-                <div style="font-size:1.3rem; font-weight:800; margin:2px 0;">{val}</div>
-                <div style="font-size:0.72rem; color:{accent}; font-weight:600;">{sub}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="metric-card" style="border:1px solid; border-radius:8px; padding:10px 12px; margin-bottom:6px;">'
+                f'<div class="txt-muted" style="font-size:0.68rem; font-weight:700; letter-spacing:0.5px;">{title}</div>'
+                f'<div class="txt-main" style="font-size:1.3rem; font-weight:800; margin:2px 0;">{val}</div>'
+                f'<div class="{cls_name}" style="font-size:0.72rem;">{sub}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
     # --- MARKET TIMING BANNER ---
-    st.markdown(f"""
-    <div style="background-color:#111827; border-left:4px solid {badge_color}; border-top:1px solid #1f2937; border-right:1px solid #1f2937; border-bottom:1px solid #1f2937; border-radius:6px; padding:8px 12px; margin:6px 0 10px 0;">
-        <span style="font-weight:800; font-size:0.82rem; color:{badge_color};">{market_badge}</span>
-        <span style="font-size:0.78rem; color:#94a3b8; margin-left:8px;">— {timing_advice}</span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="timing-banner" style="border-left:4px solid {badge_color}; border-top:1px solid; border-right:1px solid; border-bottom:1px solid; border-radius:6px; padding:8px 12px; margin:6px 0 10px 0;">'
+        f'<span style="font-weight:800; font-size:0.82rem; color:{badge_color} !important;">{market_badge}</span>'
+        f'<span class="txt-muted" style="font-size:0.78rem; margin-left:8px;">— {timing_advice}</span>'
+        f'</div>',
+        unsafe_allow_html=True
+    )
 
     # --- STRATEGY GENERATION & LIVE LEG PREMIUMS ---
     strat_title, strat_desc, raw_legs = build_strategy_specs(strat_mode_choice, live_spot, atm_strike, live_vix, oi_data)
@@ -250,18 +251,18 @@ if "Quant Terminal" in nav_mode:
         display_legs, live_spot, live_vix, dte_days, lot_size, display_exp, light_mode=light_mode
     )
 
-    st.markdown(f"""
-    <div class="metric-card" style="background-color:#111827; border:1px solid #1f2937; border-radius:8px; padding:12px; margin-bottom:8px;">
-        <div style="font-size:1.05rem; font-weight:800; color:#38bdf8;">🎯 {strat_title}</div>
-        <div style="font-size:0.78rem; color:#94a3b8; margin-top:2px;">{strat_desc}</div>
-        <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:0.82rem; font-weight:700;">
-            <span style="color:#10b981;">Max Profit: ₹{payoff_res['max_profit']:,.0f}</span>
-            <span style="color:#ef4444;">Max Risk: ₹{payoff_res['max_loss']:,.0f}</span>
-            <span style="color:#a855f7;">Win Prob (POP): {payoff_res['pop']:.1f}%</span>
-            <span style="color:#f59e0b;">Lot Size: {lot_size}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="metric-card" style="border:1px solid; border-radius:8px; padding:12px; margin-bottom:8px;">'
+        f'<div class="col-blue" style="font-size:1.05rem; font-weight:800;">🎯 {strat_title}</div>'
+        f'<div class="txt-muted" style="font-size:0.78rem; margin-top:2px;">{strat_desc}</div>'
+        f'<div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:10px; font-size:0.82rem;">'
+        f'<span class="col-green">Max Profit: ₹{payoff_res["max_profit"]:,.0f}</span>'
+        f'<span class="col-red">Max Risk: ₹{payoff_res["max_loss"]:,.0f}</span>'
+        f'<span class="col-purple">Win Prob (POP): {payoff_res["pop"]:.1f}%</span>'
+        f'<span class="col-amber">Lot Size: {lot_size}</span>'
+        f'</div></div>',
+        unsafe_allow_html=True
+    )
 
     # --- RENDER INTERACTIVE TOUCH/HOVER PLOTLY CHART ---
     st.plotly_chart(
@@ -273,19 +274,20 @@ if "Quant Terminal" in nav_mode:
     # --- EXECUTION LEGS TABLE ---
     st.markdown("#### 📋 Strategy Execution Legs")
     for i, lg in enumerate(display_legs, 1):
-        act_col = "#10b981" if lg["action"] == "BUY" else "#ef4444"
-        st.markdown(f"""
-        <div class="leg-card" style="background-color:#111827; border-left:4px solid {act_col}; border-top:1px solid #1f2937; border-right:1px solid #1f2937; border-bottom:1px solid #1f2937; border-radius:6px; padding:8px 12px; margin-bottom:6px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-                <div>
-                    <span style="font-weight:800; color:{act_col};">Leg {i}: {lg['action']}</span>
-                    <span style="font-weight:700; margin-left:6px;">NIFTY {display_exp} {lg['strike']} {lg['type']}</span>
-                    <span style="font-size:0.72rem; color:#94a3b8; margin-left:8px;">({lg['note']})</span>
-                </div>
-                <div style="font-weight:800; font-size:0.9rem;">LTP: ₹{lg['premium']:.2f}</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        act_cls = "col-green" if lg["action"] == "BUY" else "col-red"
+        border_col = "#10b981" if lg["action"] == "BUY" else "#ef4444"
+        st.markdown(
+            f'<div class="leg-card" style="border-left:4px solid {border_col}; border-top:1px solid; border-right:1px solid; border-bottom:1px solid; border-radius:6px; padding:8px 12px; margin-bottom:6px;">'
+            f'<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">'
+            f'<div>'
+            f'<span class="{act_cls}" style="font-weight:800;">Leg {i}: {lg["action"]}</span> '
+            f'<span class="txt-main" style="font-weight:700;">NIFTY {display_exp} {lg["strike"]} {lg["type"]}</span> '
+            f'<span class="txt-muted" style="font-size:0.72rem; margin-left:6px;">({lg["note"]})</span>'
+            f'</div>'
+            f'<div class="txt-main" style="font-weight:800; font-size:0.9rem;">LTP: ₹{lg["premium"]:.2f}</div>'
+            f'</div></div>',
+            unsafe_allow_html=True
+        )
 
     # --- SAVE TO LIVE TRACKER BUTTON ---
     if st.button("🚀 Deploy & Save to Live P&L Tracker", use_container_width=True, type="primary"):
@@ -353,46 +355,46 @@ else:
                 diff_p = (cur_p - ent_price) if lg["action"] == "BUY" else (ent_price - cur_p)
                 total_pnl_pts += diff_p
                 leg_pnl_rs = diff_p * lot_q
-                pnl_col = "#10b981" if leg_pnl_rs >= 0 else "#ef4444"
-                act_col = "#10b981" if lg["action"] == "BUY" else "#ef4444"
+                pnl_cls = "col-green" if leg_pnl_rs >= 0 else "col-red"
+                act_cls = "col-green" if lg["action"] == "BUY" else "col-red"
+                border_c = "#10b981" if lg["action"] == "BUY" else "#ef4444"
                 sign_p = "+" if leg_pnl_rs >= 0 else ""
 
-                # Single-line compact HTML so Streamlit never treats indentation as a code block
                 legs_html += (
-                    f'<div class="leg-card" style="background-color:#111827; border-left:4px solid {act_col}; border-top:1px solid #1f2937; border-right:1px solid #1f2937; border-bottom:1px solid #1f2937; border-radius:6px; padding:8px 10px; margin-bottom:6px;">'
-                    f'<div style="font-size:0.8rem; font-weight:700;">Leg {l_i}: <span style="color:{act_col};">{lg["action"]}</span> NIFTY {strat.get("expiry", "")} {lg["strike"]} {lg["type"]}</div>'
-                    f'<div style="font-size:0.78rem; margin-top:2px;">Entry: ₹{ent_price:.2f} → Live: <b>₹{cur_p:.2f}</b> | <span style="color:{pnl_col}; font-weight:800;">{sign_p}₹{leg_pnl_rs:,.0f}</span></div>'
+                    f'<div class="leg-card" style="border-left:4px solid {border_c}; border-top:1px solid; border-right:1px solid; border-bottom:1px solid; border-radius:6px; padding:8px 10px; margin-bottom:6px;">'
+                    f'<div class="txt-main" style="font-size:0.8rem; font-weight:700;">Leg {l_i}: <span class="{act_cls}">{lg["action"]}</span> NIFTY {strat.get("expiry", "")} {lg["strike"]} {lg["type"]}</div>'
+                    f'<div class="txt-muted" style="font-size:0.78rem; margin-top:2px;">Entry: ₹{ent_price:.2f} → Live: <b class="txt-main">₹{cur_p:.2f}</b> | <span class="{pnl_cls}" style="font-weight:800;">{sign_p}₹{leg_pnl_rs:,.0f}</span></div>'
                     f'</div>'
                 )
 
             net_pnl_rs = total_pnl_pts * lot_q
-            net_col = "#10b981" if net_pnl_rs >= 0 else "#ef4444"
+            net_cls = "col-green" if net_pnl_rs >= 0 else "col-red"
             net_sign = "+" if net_pnl_rs >= 0 else ""
 
             if abs(spot_drift) >= 100:
                 status_txt = f"🟡 STATUS: MONITOR CLOSELY — Spot Drift: {spot_drift:+.1f} pts."
-                status_bg = "rgba(234, 179, 8, 0.15)"
-                status_col = "#f59e0b"
+                status_bg = "rgba(234, 179, 8, 0.16)"
+                status_cls = "col-amber"
             else:
                 status_txt = f"🟢 STATUS: SAFE ZONE — Spot Drift: {spot_drift:+.1f} pts."
-                status_bg = "rgba(16, 185, 129, 0.15)"
-                status_col = "#10b981"
+                status_bg = "rgba(16, 185, 129, 0.16)"
+                status_cls = "col-green"
 
             max_p_clean = round(float(strat.get("max_profit", 0)))
             max_l_clean = round(float(strat.get("max_loss", 0)))
 
             card_html = (
-                f'<div class="tracker-card" style="background-color:#111827; border:1px solid #1f2937; border-radius:10px; padding:12px; margin-top:10px;">'
-                f'<div style="font-size:0.95rem; font-weight:800;">#{idx+1} • {strat.get("name", "Strategy")} <span style="color:#38bdf8;">({strat.get("expiry", "")})</span></div>'
-                f'<div style="font-size:0.72rem; color:#94a3b8; margin-bottom:6px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | Live Spot: ₹{live_spot:,.2f} ({spot_drift:+.1f})</div>'
-                f'<div style="display:flex; gap:14px; flex-wrap:wrap; font-size:0.78rem; font-weight:700; margin-bottom:6px;">'
-                f'<span style="color:#10b981;">Max Profit: ₹{max_p_clean:,}</span>'
-                f'<span style="color:#ef4444;">Max Risk: ₹{max_l_clean:,}</span>'
-                f'<span>Lot Qty: {lot_q}</span>'
+                f'<div class="tracker-card" style="border:1px solid; border-radius:10px; padding:12px; margin-top:10px;">'
+                f'<div class="txt-main" style="font-size:0.95rem; font-weight:800;">#{idx+1} • {strat.get("name", "Strategy")} <span class="col-blue">({strat.get("expiry", "")})</span></div>'
+                f'<div class="txt-muted" style="font-size:0.72rem; margin-bottom:6px;">Saved: {strat.get("saved_time", "")} | Entry Spot: ₹{ent_spot:,.2f} | Live Spot: ₹{live_spot:,.2f} ({spot_drift:+.1f})</div>'
+                f'<div style="display:flex; gap:14px; flex-wrap:wrap; font-size:0.78rem; margin-bottom:6px;">'
+                f'<span class="col-green">Max Profit: ₹{max_p_clean:,}</span>'
+                f'<span class="col-red">Max Risk: ₹{max_l_clean:,}</span>'
+                f'<span class="txt-main" style="font-weight:700;">Lot Qty: {lot_q}</span>'
                 f'</div>'
-                f'<div style="font-size:1.05rem; font-weight:800; margin-bottom:10px;">Running P&L: <span style="color:{net_col};">{net_sign}₹{net_pnl_rs:,.0f} ({total_pnl_pts:+.2f} pts)</span></div>'
+                f'<div class="txt-main" style="font-size:1.05rem; font-weight:800; margin-bottom:10px;">Running P&L: <span class="{net_cls}">{net_sign}₹{net_pnl_rs:,.0f} ({total_pnl_pts:+.2f} pts)</span></div>'
                 f'{legs_html}'
-                f'<div style="background:{status_bg}; color:{status_col}; padding:8px 10px; border-radius:6px; font-size:0.78rem; font-weight:800; margin-top:8px;">{status_txt}</div>'
+                f'<div class="{status_cls}" style="background:{status_bg}; padding:8px 10px; border-radius:6px; font-size:0.78rem; margin-top:8px;">{status_txt}</div>'
                 f'</div>'
             )
             st.markdown(card_html, unsafe_allow_html=True)
