@@ -1,11 +1,10 @@
 streamlit
 streamlit-autorefresh
 smartapi-python
-logzero
-websocket-client
 pyotp
-scipy
-matplotlib
 pandas
 numpy
+scipy
 requests
+plotly
+matplotlib
