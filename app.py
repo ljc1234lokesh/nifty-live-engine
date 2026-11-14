@@ -331,13 +331,12 @@ if "Quant Terminal" in nav_mode:
             st.session_state.saved_strategies.append(new_entry)
             save_strategies_to_disk(st.session_state.saved_strategies)
             
-            tg_msg = f"🚀 <b>NEW STRATEGY DEPLOYED</b>
+            tg_msg = f"""🚀 <b>NEW STRATEGY DEPLOYED</b>
 #{new_id}. <b>{strat_title}</b> ({display_exp})
 Saved: {ist_time_str}    Spot: ₹{live_spot:,.2f}
-"
+"""
             for lg in display_legs:
-                tg_msg += f"• {lg['action']} NIFTY {display_exp} {lg['strike']} {lg['type']} @ ₹{lg['premium']:.2f}
-"
+                tg_msg += f"• {lg['action']} NIFTY {display_exp} {lg['strike']} {lg['type']} @ ₹{lg['premium']:.2f}\n"
             
             send_telegram_alert(tg_msg)
             st.toast(f"🚀 Telegram Notification Sent: New Strategy Deployed!", icon="✅")
@@ -374,9 +373,7 @@ else:
         st.markdown(f"#### 🛡️ Live Trade Tracker & P&L Desk ({len(st.session_state.saved_strategies)} Active)")
     with t_c2:
         if st.button("🔔 Send Test Alert", use_container_width=True):
-            ok = send_telegram_alert(f"🔔 <b>Quant Terminal Test Alert</b>
-Nifty Spot: ₹{live_spot:,.2f}
-Time: {ist_time_str}")
+            ok = send_telegram_alert(f"🔔 <b>Quant Terminal Test Alert</b>\nNifty Spot: ₹{live_spot:,.2f}\nTime: {ist_time_str}")
             if ok: 
                 st.toast("🔔 Telegram Notification Sent: Test Message!", icon="✅")
                 st.success("✅ Alert Sent!")
@@ -422,8 +419,7 @@ Time: {ist_time_str}")
                 act_col = "#10b981" if lg["action"] == "BUY" else "#ef4444"
                 sign_p = "+" if leg_pnl_rs >= 0 else ""
                 
-                tg_exit_legs += f"• {lg['action']} NIFTY {strat.get('expiry', '')} {lg['strike']} {lg['type']}: ₹{ent_price:.2f} → ₹{cur_p:.2f} ({sign_p}₹{leg_pnl_rs:,.0f})
-"
+                tg_exit_legs += f"• {lg['action']} NIFTY {strat.get('expiry', '')} {lg['strike']} {lg['type']}: ₹{ent_price:.2f} → ₹{cur_p:.2f} ({sign_p}₹{leg_pnl_rs:,.0f})\n"
 
                 legs_html += (
                     f'<div style="background-color:#111827; border-left:4px solid {act_col}; border:1px solid #1f2937; border-radius:4px; padding:4px 8px; margin-bottom:4px;">'
@@ -493,10 +489,10 @@ Time: {ist_time_str}")
             alert_key = f"sl_alerted_{strat_id}"
 
             if net_pnl_rs <= sl_limit and not st.session_state.get(alert_key, False):
-                sl_msg = f"⚠️ <b>EMERGENCY: STOP-LOSS BREACHED!</b>
+                sl_msg = f"""⚠️ <b>EMERGENCY: STOP-LOSS BREACHED!</b>
 #{idx+1} • <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})
 Current P&L: <b>₹{net_pnl_rs:,.0f}</b> (Trigger: ₹{sl_limit:,.0f})
-👉 Please review or exit position!"
+👉 Please review or exit position!"""
                 send_telegram_alert(sl_msg)
                 st.toast(f"🚨 Stop-Loss Triggered for #{idx+1}!", icon="⚠️")
                 st.session_state[alert_key] = True
@@ -533,11 +529,11 @@ Current P&L: <b>₹{net_pnl_rs:,.0f}</b> (Trigger: ₹{sl_limit:,.0f})
                 with btn_c1:
                     if st.button("🚪 Exit Trade", key=f"exit_{strat_id}", use_container_width=True):
                         pnl_status = "🟢 PROFIT BOOKED" if net_pnl_rs >= 0 else "🔴 LOSS BOOKED"
-                        tg_msg = f"🚪 <b>TRADE EXITED — {pnl_status}</b>
+                        tg_msg = f"""🚪 <b>TRADE EXITED — {pnl_status}</b>
 Saved: {strat.get('saved_time', '')}
 #{idx+1}. <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})
 Net: {net_sign}{total_pnl_pts:+.2f} pts | P&L: <b>{net_sign}₹{net_pnl_rs:,.0f}</b>
-{tg_exit_legs}"
+{tg_exit_legs}"""
                         send_telegram_alert(tg_msg)
                         
                         st.toast(f"🚀 Telegram Notification Sent: Trade Exited! P&L: {net_sign}₹{net_pnl_rs:,.0f}", icon="✅")
@@ -568,10 +564,10 @@ Net: {net_sign}{total_pnl_pts:+.2f} pts | P&L: <b>{net_sign}₹{net_pnl_rs:,.0f}
                     
                     updated = False
                     new_legs = []
-                    tg_edit_msg = f"✏️ <b>TRADE EDITED</b>
+                    tg_edit_msg = f"""✏️ <b>TRADE EDITED</b>
 #{idx+1} • <b>{strat.get('name', 'Strategy')}</b> ({strat.get('expiry', '')})
 Updated: {ist_time_str}    Spot: ₹{live_spot:,.2f}
-"
+"""
                     
                     for l_i, lg in enumerate(strat.get("legs", [])):
                         cur_ent_val = float(lg.get("entry_price", lg.get("entry", lg.get("premium", 0.0))))
@@ -585,13 +581,11 @@ Updated: {ist_time_str}    Spot: ₹{live_spot:,.2f}
                         if new_st != lg["strike"] or new_pr != cur_ent_val:
                             updated = True
                             
-                        tg_edit_msg += f"• {lg['action']} NIFTY {strat.get('expiry', '')} {new_st} {lg['type']} @ ₹{new_pr:.2f}
-"
+                        tg_edit_msg += f"• {lg['action']} NIFTY {strat.get('expiry', '')} {new_st} {lg['type']} @ ₹{new_pr:.2f}\n"
                     
                     if new_sl_limit != sl_limit:
                         updated = True
-                        tg_edit_msg += f"• <b>New Stop-Loss Limit:</b> ₹{new_sl_limit:,.0f}
-"
+                        tg_edit_msg += f"• <b>New Stop-Loss Limit:</b> ₹{new_sl_limit:,.0f}\n"
 
                     if st.button("💾 Save Changes", key=f"save_{strat_id}", type="primary", use_container_width=True):
                         if updated:
